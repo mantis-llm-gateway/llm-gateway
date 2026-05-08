@@ -40,7 +40,8 @@ Install git hooks from the repository root:
 uv run pre-commit install
 ```
 
-Run all checks manually:
+Run all checks manually (by default the pre-commit hook will only
+run on committed files):
 
 ```sh
 uv run pre-commit run --all-files
