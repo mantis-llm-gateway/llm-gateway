@@ -23,6 +23,10 @@ llm-gateway/
 
 ## Development Setup
 
+Please do not forget to change your IDE's settings to allow some hidden folders
+to appear in the file explorer (specifically .git and .github). In VSCode you can
+search for "Files exclude" patterns in your settings and remove the relevant patterns.
+
 Install backend dependencies:
 
 ```sh
