@@ -6,10 +6,10 @@ TODO: description of the repo
 
 ```text
 llm-gateway/
-├── gateway/      # FastAPI backend service
-├── infra/        # Terraform / infrastructure code
+├── dashboard/    # Frontend UI
 ├── docs/         # Architecture and technical documentation
-└── dashboard/    # Frontend UI
+├── gateway/      # FastAPI backend service
+└── infra/        # Terraform / infrastructure code
 ```
 
 ## Technology Stack
