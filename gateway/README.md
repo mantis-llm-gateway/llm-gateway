@@ -1,0 +1,84 @@
+# Gateway Service
+
+Gateway component.
+
+## Project Structure
+
+```text
+gateway/
+├── src/
+│   └── gateway/
+│       ├── __init__.py
+│       └── main.py
+├── tests/
+├── pyproject.toml
+└── uv.lock
+```
+
+## Development
+
+This project uses `uv` for dependency management.
+
+Synchronize the environment and install dependencies with:
+
+```sh
+uv sync
+```
+
+## Running the Service
+
+Start the development server:
+
+```sh
+uv run uvicorn gateway.main:app --reload
+```
+
+## Running tests
+
+Running the tests:
+```sh
+uv run pytest
+```
+
+## Tooling
+
+### Linting and Formatting
+
+The repository uses Ruff for:
+
+- linting
+- formatting
+- import sorting
+
+Run manually with:
+
+```sh
+uv run ruff check .
+uv run ruff format .
+```
+
+### Type Checking
+
+Mypy is used for static type checking.
+
+Run manually with:
+
+```sh
+uv run mypy .
+```
+
+### Git Hooks
+
+The repository uses pre-commit hooks to automatically run checks before commits.
+
+Install hooks from the repository root:
+
+```sh
+uv run pre-commit install
+```
+
+Run all hooks manually:
+
+```sh
+uv run pre-commit run --all-files
+```

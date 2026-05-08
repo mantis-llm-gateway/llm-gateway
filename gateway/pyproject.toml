@@ -1,0 +1,32 @@
+[project]
+name = "gateway"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "any-llm-sdk[anthropic,gemini,openai]>=1.14.0",
+    "fastapi>=0.136.1",
+    "httpx>=0.28.1",
+    "pydantic>=2.13.4",
+    "uvicorn>=0.46.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=2.0.0",
+    "pre-commit>=4.6.0",
+    "pytest>=9.0.3",
+    "ruff>=0.15.12",
+]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
