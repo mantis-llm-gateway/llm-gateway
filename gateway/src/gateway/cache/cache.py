@@ -27,8 +27,11 @@ class PromptCache:
         self._default_ttl_seconds = default_ttl_seconds
 
     def get(self, key: str) -> str | None:
-        """Return cached response, or None on miss.
-        Backend failures will be raised (contract TBD with Redis adapter)."""
+        """
+        Return cached response, or None on miss.
+        `key` must be produced by `build_exact_key`; do not pass raw prompts.
+        Backend failures will be raised (contract TBD with Redis adapter).
+        """
         return self._client.get(key)
 
     # TODO: store response metadata (model, tokens, timestamp) when we add observability.
@@ -36,16 +39,3 @@ class PromptCache:
     def set(self, key: str, response: str, ttl_seconds: int | None = None) -> None:
         ttl = ttl_seconds if ttl_seconds is not None else self._default_ttl_seconds
         self._client.set(key, response, ttl)
-
-
-class InMemoryCacheClient:
-    """In-memory CacheClient for tests. TTL is accepted but ignored."""
-
-    def __init__(self) -> None:
-        self._store: dict[str, str] = {}
-
-    def get(self, key: str) -> str | None:
-        return self._store.get(key)
-
-    def set(self, key: str, value: str, ttl_seconds: int) -> None:
-        self._store[key] = value
