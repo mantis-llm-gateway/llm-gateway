@@ -1,4 +1,5 @@
-from gateway.cache.cache import InMemoryCacheClient, PromptCache
+from gateway.cache.cache import PromptCache
+from gateway.cache.in_memory_client import InMemoryCacheClient
 
 
 def test_get_returns_none_on_miss():
