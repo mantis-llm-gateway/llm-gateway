@@ -1,4 +1,5 @@
-# TODO: This is an arbitrary threshold value for now
+# TODO: Use a more precisely chosen value.
+# Lowerower temp warrants a higher cache hit rate because user wants more deterministic results
 CACHE_TEMP_THRESHOLD = 0.3
 
 
