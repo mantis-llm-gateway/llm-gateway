@@ -9,33 +9,48 @@ class CacheClient(Protocol):
 
 
 class PromptCache:
-    """Exact-match prompt cache for now.
-    This class will become the orchestrator for exact + semantic later."""
+    """Exact-match prompt cache.
+
+    Callers pass `prompt` (plus optional `model` / `provider`) to `get`/`set` —
+    key derivation is internal. Will grow into an exact + semantic orchestrator.
+    """
 
     PREFIX = "prompt:exact:"
-
-    # TODO: `prompt` used for now.
-    # Later, `model`, `provider`, etc. can be added to build more specific keys
-    @classmethod
-    def build_exact_key(cls, prompt: str) -> str:
-        normalized = re.sub(r"\s+", " ", prompt).strip()
-        hashed = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
-        return f"{cls.PREFIX}{hashed}"
 
     def __init__(self, client: CacheClient, default_ttl_seconds: int = 3600):
         self._client = client
         self._default_ttl_seconds = default_ttl_seconds
 
-    def get(self, key: str) -> str | None:
+    def get(
+        self, *, prompt: str, model: str | None = None, provider: str | None = None
+    ) -> str | None:
         """
         Return cached response, or None on miss.
-        `key` must be produced by `build_exact_key`; do not pass raw prompts.
         Backend failures will be raised (contract TBD with Redis adapter).
         """
+        key = self._build_exact_key(prompt=prompt, model=model, provider=provider)
         return self._client.get(key)
 
     # TODO: store response metadata (model, tokens, timestamp) when we add observability.
     # Cached values are raw response strings for now.
-    def set(self, key: str, response: str, ttl_seconds: int | None = None) -> None:
+    def set(
+        self,
+        *,
+        prompt: str,
+        response: str,
+        model: str | None = None,
+        provider: str | None = None,
+        ttl_seconds: int | None = None,
+    ) -> None:
+        key = self._build_exact_key(prompt=prompt, model=model, provider=provider)
         ttl = ttl_seconds if ttl_seconds is not None else self._default_ttl_seconds
         self._client.set(key, response, ttl)
+
+    @classmethod
+    def _build_exact_key(
+        cls, *, prompt: str, model: str | None = None, provider: str | None = None
+    ) -> str:
+        normalized = re.sub(r"\s+", " ", prompt).strip()
+        hashed = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+        material = ":".join(part or "_" for part in (provider, model))
+        return f"{cls.PREFIX}{material}:{hashed}"
