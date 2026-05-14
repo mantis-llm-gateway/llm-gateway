@@ -3,7 +3,7 @@ import re
 from typing import Protocol
 
 
-class CacheClient(Protocol):
+class CacheBackend(Protocol):
     def get(self, key: str) -> str | None: ...
     def set(self, key: str, value: str, ttl_seconds: int) -> None: ...
 
@@ -17,7 +17,7 @@ class PromptCache:
 
     PREFIX = "prompt:exact:"
 
-    def __init__(self, client: CacheClient, default_ttl_seconds: int = 3600):
+    def __init__(self, client: CacheBackend, default_ttl_seconds: int = 3600):
         self._client = client
         self._default_ttl_seconds = default_ttl_seconds
 
