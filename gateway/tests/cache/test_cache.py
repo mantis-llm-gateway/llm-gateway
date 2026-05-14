@@ -47,10 +47,10 @@ class RecordingClient:
     def __init__(self) -> None:
         self.last_ttl: int | None = None
 
-    def get(self, _key: str) -> str | None:
+    def get(self, key: str) -> str | None:
         return None
 
-    def set(self, _key: str, _value: str, ttl_seconds: int) -> None:
+    def set(self, key: str, value: str, ttl_seconds: int) -> None:
         self.last_ttl = ttl_seconds
 
 
@@ -66,3 +66,8 @@ def test_set_uses_explicit_ttl_when_passed():
     cache = PromptCache(client=recorder, default_ttl_seconds=120)
     cache.set(prompt="anything", response="response", ttl_seconds=99)
     assert recorder.last_ttl == 99
+
+
+def test_build_exact_key_sanitizes_colons():
+    key = PromptCache._build_exact_key(prompt="hi", provider="open:ai", model="gpt:4")
+    assert key.startswith("prompt:exact:open_ai:gpt_4:")

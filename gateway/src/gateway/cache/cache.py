@@ -50,7 +50,21 @@ class PromptCache:
     def _build_exact_key(
         cls, *, prompt: str, model: str | None = None, provider: str | None = None
     ) -> str:
+        """
+        Builds a key using the class prefix ('prompt:exact:'), provider, model,
+        and a hash of the prompt text with whitespace removed
+        """
         normalized = re.sub(r"\s+", " ", prompt).strip()
         hashed = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
-        material = ":".join(part or "_" for part in (provider, model))
-        return f"{cls.PREFIX}{material}:{hashed}"
+
+        provider_and_model = ":".join(cls._sanitize(part) for part in (provider, model))
+        return f"{cls.PREFIX}{provider_and_model}:{hashed}"
+
+    @staticmethod
+    def _sanitize(string: str | None) -> str:
+        """
+        Removes all colons from a string
+        """
+        if not string:
+            return "_"
+        return string.replace(":", "_")
