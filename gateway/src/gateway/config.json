@@ -96,7 +96,7 @@
     {
       "id": "1",
       "name": "Code generation",
-      "match": { "source": "header", "name": "task-type", "value": "code_generation"},
+      "match": {"name": "task-type", "value": "code_generation"},
       "targets": [
         {"alias": "Claude Opus 4.7", "weight": 6}, {"alias": "Claude Opus 4.6", "weight": 4}
       ]
@@ -104,7 +104,7 @@
     {
       "id": "2",
       "name": "Summarization",
-      "match": { "source": "header", "name": "task-type", "value": "summarization"},
+      "match": {"name": "task-type", "value": "summarization"},
       "targets": [
         {"alias": "Gemini 2.5 Pro", "weight": 6}, {"alias": "Claude Opus 4.5", "weight": 5}
       ]
@@ -112,7 +112,7 @@
     {
       "id": "3",
       "name": "Free tier",
-      "match": {"source": "header", "name": "user-tier", "value": "free"},
+      "match": {"name": "user-tier", "value": "free"},
       "targets": [
         {"alias": "GPT 5 nano", "weight": 2}, {"alias": "GPT 5 nano Azure", "weight": 4}
       ]
@@ -120,7 +120,7 @@
     {
       "id": "4",
       "name": "Paid tier",
-      "match": {"source": "header", "name": "user-tier", "value": "paid"},
+      "match": {"name": "user-tier", "value": "paid"},
       "targets": [
         {"alias": "Claude Opus 4.7", "weight": 4},
         {"alias": "Claude Opus 4.7 Bedrock", "weight": 3},
