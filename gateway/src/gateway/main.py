@@ -2,44 +2,60 @@ import json
 import random
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TypedDict
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-
-with open(Path(__file__).parent / "config.json") as f:
-    config = json.load(f)
+from pydantic import BaseModel
 
 
-app = FastAPI()
-
-ALIASES = config["aliases"]
-ROUTING_RULES = config["routing_rules"]
-TARGET_RETRIES = config["target_retries"]
-INITIAL_RESPONSE_TIMEOUT = config["initial_response_timeout"]
-DEFAULT_MODEL = config["default_model"]
-FALLBACKS = config["fallbacks"]
+class AliasConfig(BaseModel):
+    provider: str
+    model: str
+    rate_limits: dict[str, int]
 
 
-class Target(TypedDict):
-    alias: str
-    weight: int
-
-
-class RuleMatch(TypedDict):
+class RuleMatchConfig(BaseModel):
     name: str
     value: str
 
 
-class Rule(TypedDict):
+class TargetConfig(BaseModel):
+    alias: str
+    weight: int
+
+
+class RoutingRuleConfig(BaseModel):
     id: str
     name: str
-    match: RuleMatch
-    targets: list[Target]
+    match: RuleMatchConfig
+    targets: list[TargetConfig]
 
 
-def is_matching_rule(header_name: str, header_value: str, rule: Rule) -> bool:
-    return header_name == rule["match"]["name"] and header_value == rule["match"]["value"]
+class Config(BaseModel):
+    aliases: dict[str, AliasConfig]
+    routing_rules: list[RoutingRuleConfig]
+    target_retries: int
+    initial_response_timeout: int
+    default_model: str
+    fallbacks: list[str]
+
+
+with open(Path(__file__).parent / "config.json") as f:
+    config = Config(**json.load(f))
+
+
+app = FastAPI()
+
+ALIASES = config.aliases
+ROUTING_RULES = config.routing_rules
+TARGET_RETRIES = config.target_retries
+INITIAL_RESPONSE_TIMEOUT = config.initial_response_timeout
+DEFAULT_MODEL = config.default_model
+FALLBACKS = config.fallbacks
+
+
+def is_matching_rule(header_name: str, header_value: str, rule: RoutingRuleConfig) -> bool:
+    return header_name == rule.match.name and header_value == rule.match.value
 
 
 def try_target(target: dict[str, str], deadline: datetime):  # type: ignore[return]
@@ -77,25 +93,29 @@ def try_target(target: dict[str, str], deadline: datetime):  # type: ignore[retu
     return (last_error, "failover")
 
 
-def select_entry_target(weighted_targets: list[Target], rng: random.Random | None = None) -> str:
+def select_entry_target(
+    weighted_targets: list[TargetConfig], rng: random.Random | None = None
+) -> str:
     if rng is None:
         rng = random.Random()
     targets = []
     weights = []
     for target in weighted_targets:
-        targets.append(target["alias"])
-        weights.append(target["weight"])
+        targets.append(target.alias)
+        weights.append(target.weight)
 
     return rng.choices(targets, weights=weights, k=1)[0]
 
 
-def build_attempt_chain(entry_target: str, targets_for_matching_rule: list[Target]) -> list[str]:
+def build_attempt_chain(
+    entry_target: str, targets_for_matching_rule: list[TargetConfig]
+) -> list[str]:
     attempt_chain = [entry_target]
     for target in targets_for_matching_rule:
-        if target["alias"] == entry_target:
+        if target.alias == entry_target:
             continue
         else:
-            attempt_chain.append(target["alias"])
+            attempt_chain.append(target.alias)
 
     return attempt_chain
 
@@ -118,8 +138,8 @@ async def chat_completions(request: Request) -> JSONResponse | None:
     for rule in ROUTING_RULES:
         if is_matching_rule(routing_rule_header_name, routing_rule_header_value, rule):
             found_matching_rule = True
-            entry_target = select_entry_target(rule["targets"])
-            attempt_chain = build_attempt_chain(entry_target, rule["targets"])
+            entry_target = select_entry_target(rule.targets)
+            attempt_chain = build_attempt_chain(entry_target, rule.targets)
 
             break
 
@@ -128,10 +148,12 @@ async def chat_completions(request: Request) -> JSONResponse | None:
     else:
         attempt_chain += FALLBACKS
 
+    attempt_chain = list(dict.fromkeys(attempt_chain))
+
     resolved_attempt_chain = [
         {
-            "provider": ALIASES[target]["provider"],
-            "model": ALIASES[target]["model"],
+            "provider": ALIASES[target].provider,
+            "model": ALIASES[target].model,
         }
         for target in attempt_chain
     ]
