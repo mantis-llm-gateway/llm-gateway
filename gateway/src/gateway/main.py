@@ -2,6 +2,7 @@ import json
 import random
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import TypedDict
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -9,19 +10,44 @@ from fastapi.responses import JSONResponse
 with open(Path(__file__).parent / "config.json") as f:
     config = json.load(f)
 
+
 app = FastAPI()
 
+ALIASES = config["aliases"]
+ROUTING_RULES = config["routing_rules"]
+TARGET_RETRIES = config["target_retries"]
+INITIAL_RESPONSE_TIMEOUT = config["initial_response_timeout"]
+DEFAULT_MODEL = config["default_model"]
+FALLBACKS = config["fallbacks"]
 
-def is_matching_rule(header_name, header_value, rule):
+
+class Target(TypedDict):
+    alias: str
+    weight: int
+
+
+class RuleMatch(TypedDict):
+    name: str
+    value: str
+
+
+class Rule(TypedDict):
+    id: str
+    name: str
+    match: RuleMatch
+    targets: list[Target]
+
+
+def is_matching_rule(header_name: str, header_value: str, rule: Rule) -> bool:
     return header_name == rule["match"]["name"] and header_value == rule["match"]["value"]
 
 
-def try_target(target, deadline):
+def try_target(target: dict[str, str], deadline: datetime):  # type: ignore[return]
     last_error = None
     attempts = 0
-    max_attempts = 1 + config["target_retries"]
+    max_attempts = 1 + TARGET_RETRIES
     while attempts < max_attempts:
-        if datetime.now(datetime.utc) > deadline:
+        if datetime.now(UTC) > deadline:
             return (TimeoutError, "abort")
 
         # try:
@@ -51,17 +77,19 @@ def try_target(target, deadline):
     return (last_error, "failover")
 
 
-def select_entry_target(weighted_targets):
+def select_entry_target(weighted_targets: list[Target], rng: random.Random | None = None) -> str:
+    if rng is None:
+        rng = random.Random()
     targets = []
     weights = []
     for target in weighted_targets:
         targets.append(target["alias"])
         weights.append(target["weight"])
 
-    return random.choices(targets, weights=weights, k=1)[0]
+    return rng.choices(targets, weights=weights, k=1)[0]
 
 
-def build_attempt_chain(entry_target, targets_for_matching_rule):
+def build_attempt_chain(entry_target: str, targets_for_matching_rule: list[Target]) -> list[str]:
     attempt_chain = [entry_target]
     for target in targets_for_matching_rule:
         if target["alias"] == entry_target:
@@ -72,22 +100,22 @@ def build_attempt_chain(entry_target, targets_for_matching_rule):
     return attempt_chain
 
 
-@app.post("/v1/chat/completions")
-async def chat_completions(request: Request):
+@app.post("/v1/chat/completions", response_model=None)
+async def chat_completions(request: Request) -> JSONResponse | None:
     now = datetime.now(UTC)
-    deadline = now + timedelta(seconds=config["initial_response_timeout"])
+    deadline = now + timedelta(seconds=INITIAL_RESPONSE_TIMEOUT)
 
     # -I will use the cache class provided by Rey (teammate) here to check if the cache
     #  should be bypassed. If not, I will call cache.get(). If a cached response is found,
     #  it will be sent back to the client and the rest of the handler will not execute;
     #  otherwise, the rest of the handler will execute.
 
-    metadata = json.loads(request.headers.get("metadata") or "{}")
-    routing_rule_header_name = list(metadata.keys())[0]
-    routing_rule_header_value = list(metadata.values())[0]
+    metadata: dict[str, str] = json.loads(request.headers.get("metadata") or "{}")
+    routing_rule_header_name: str = list(metadata.keys())[0]
+    routing_rule_header_value: str = list(metadata.values())[0]
 
     found_matching_rule = False
-    for rule in config["routing_rules"]:
+    for rule in ROUTING_RULES:
         if is_matching_rule(routing_rule_header_name, routing_rule_header_value, rule):
             found_matching_rule = True
             entry_target = select_entry_target(rule["targets"])
@@ -96,20 +124,20 @@ async def chat_completions(request: Request):
             break
 
     if not found_matching_rule:
-        attempt_chain = [config["default_model"]] + config["fallbacks"]
+        attempt_chain = [DEFAULT_MODEL] + FALLBACKS
     else:
-        attempt_chain += config["fallbacks"]
+        attempt_chain += FALLBACKS
 
-    attempt_chain = [
+    resolved_attempt_chain = [
         {
-            "provider": config["aliases"][target]["provider"],
-            "model": config["aliases"][target]["model"],
+            "provider": ALIASES[target]["provider"],
+            "model": ALIASES[target]["model"],
         }
         for target in attempt_chain
     ]
 
     last_error = None
-    for target in attempt_chain:
+    for target in resolved_attempt_chain:
         if datetime.now(UTC) > deadline:
             return JSONResponse(status_code=504, content={"error": "request timed out"})
 
@@ -132,3 +160,5 @@ async def chat_completions(request: Request):
         return JSONResponse(
             status_code=last_error.response.status_code, content={"error": "bad request"}
         )
+
+    return None
