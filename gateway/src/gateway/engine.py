@@ -18,8 +18,5 @@ class ProviderAdaptor:
         # modify this once we are set up to send requests to other providers
         api_key = os.environ.get("OPENAI_API_KEY")
 
-        if self.provider_connections.get(provider):
-            pass
-        else:
+        if not self.provider_connections.get(provider):
             self.provider_connections[provider] = AnyLLM.create(provider, api_key=api_key)
-        return
