@@ -90,6 +90,9 @@ def try_target(target: dict[str, str], deadline: datetime):  # type: ignore[retu
         #   assign the caught error to last_error
         #   increment attempts and retry the target
 
+        # -Todo: From Hubert in TEA-36: Core routing logic PR:
+        #  "These should be constants or typed into an Enum to
+        #  avoid typo-driven errors later."
     return (last_error, "failover")
 
 
@@ -122,6 +125,9 @@ def build_attempt_chain(
 
 @app.post("/v1/chat/completions", response_model=None)
 async def chat_completions(request: Request) -> JSONResponse | None:
+    # -Once you start using the cache and have Riz's streaming function, refactor all this
+    #  code in the handler and extract into a routing module/service,
+    #  as per Hubert's suggestion in PR TEA-36 Core routing logic
     now = datetime.now(UTC)
     deadline = now + timedelta(seconds=INITIAL_RESPONSE_TIMEOUT)
 
