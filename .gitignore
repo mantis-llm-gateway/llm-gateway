@@ -25,6 +25,7 @@ dist/
 # IDEs
 .vscode/
 .idea/
+pyrightconfig.json
 
 # macOS
 .DS_Store
