@@ -14,6 +14,7 @@ class SemanticCacheClient(Protocol):
 
 
 class PromptCache:
+    # TODO: look into eviction policies
     """Exact-match prompt cache.
 
     Callers pass `prompt`, `model`, `provider` (required) to `get`/`set`.
