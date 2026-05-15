@@ -1,38 +1,17 @@
+import logging
 import uuid
-from typing import Protocol
 
+import numpy as np
 import redis
+from redis.exceptions import ResponseError
 
-
-class Embedder(Protocol):
-    """
-    Interface for embedding text. Should return a list of floats
-    """
-
-    def embed(self, text: str) -> list[float]: ...
-
-
-class BedrockEmbedder:
-    """
-    TODO: add descriptive and succinct docstring
-    """
-
-    # Our chosen prompt embedding model
-    DEFAULT_EMBEDDING_MODEL = "amazon.titan-embed-text-v2:0"
-
-    def __init__(self, bedrock_client, model: str = DEFAULT_EMBEDDING_MODEL):
-        self._bedrock_client = bedrock_client
-        self._model = model
-
-    def embed(self, text: str) -> list[float]:
-        # invoke the model
-        # return the embedding
-        raise NotImplementedError
+from gateway.cache.embedders import Embedder
 
 
 class RedisSemanticCacheBackend:
     # TODO: make configurable from env variables (local) or config file (production)
-    # TODO: verify FT.SEARCH syntax against ElastiCache w/ Valkey before prod deploy
+    # TODO: verify FT.SEARCH, FT.CREATE syntax against ElastiCache w/ Valkey before prod deploy.
+    # Will be mostly the same, but minor syntax differences may exist
     DEFAULT_TTL_SECONDS = 3600
     DEFAULT_SIMILARITY_THRESHOLD = 0.8
     DEFAULT_TOP_K = 3
@@ -53,22 +32,53 @@ class RedisSemanticCacheBackend:
         self._similarity_threshold = similarity_threshold
         self._top_k = top_k
 
+    def ensure_index_exists(self) -> None:
+        """Create the FT index if it doesn't already exist.
+        Safe to call repeatedly. Safe to call repeatedly."""
+        try:
+            self._redis.execute_command(
+                "FT.CREATE",
+                "idx:semantic",
+                "ON",
+                "HASH",
+                "PREFIX",
+                "1",
+                self.PREFIX,
+                "SCHEMA",
+                "vector",
+                "VECTOR",
+                "HNSW",
+                "6",
+                "TYPE",
+                "FLOAT32",
+                "DIM",
+                "1024",
+                "DISTANCE_METRIC",
+                "COSINE",
+                "model",
+                "TAG",
+                "provider",
+                "TAG",
+            )
+        except ResponseError as e:
+            if "Index already exists" not in str(e):
+                raise
+
     def lookup(self, prompt: str, model: str, provider: str) -> str | None:
+        # TODO:
         # create embedding of prompt
         # search redis for similar vectors filtered on model and provider
         # given top-k, return the first one (maybe log the others for threshold tuning?)
         raise NotImplementedError
 
     def store(self, prompt: str, response: str, model: str, provider: str) -> None:
-        # get embedding
         embedding = self._embedder.embed(prompt)
-        # generate a uuid (this will be a part of the key -> prompt:semantic:<uuid>)
         key_id = uuid.uuid4().hex
-        # build key
         key = f"{self.PREFIX}{key_id}"
-        # store prompt, response, embedding (redis HASH?) (model and provider as metadata fields)
+
         # Stored as a Redis HASH so vector + response + tags stay co-located.
-        self._redis.hset(
+        logging.info(f"Attempting to store key {key}...")
+        result = self._redis.hset(
             key,
             mapping={
                 "vector": self._encode_vector(embedding),
@@ -78,13 +88,13 @@ class RedisSemanticCacheBackend:
             },
         )
 
-        # set the ttl on the key
         self._redis.expire(key, self._default_ttl_seconds)
-        # return success message (the uuid of the key or something)
-        raise NotImplementedError
+
+        # TODO: remove in prod (useful now for local testing)
+        logging.info("Stored key {key} with result:\n", result)
 
     @staticmethod
-    def _encode_vector(embedding: list[float]) -> str:
-        # TODO: encode the embedding into bytes that Redis can store
-        #  Encode as little-endian float32 bytes to match the FT index's FLOAT32 vector field.
-        raise NotImplementedError
+    def _encode_vector(embedding: list[float]) -> bytes:
+        """Encode as little-endian float32 bytes
+        to match the format the Redis vector index expects."""
+        return np.array(embedding, dtype="<f4").tobytes()
