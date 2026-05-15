@@ -10,6 +10,8 @@ class Embedder(Protocol):
     Anything that turns text into a vector.
     """
 
+    DIMENSIONS: int
+
     def embed(self, text: str) -> list[float]: ...
 
 
@@ -22,8 +24,7 @@ class FakeEmbedder:
     This is only for creating fake vectors and is not for testing semantic similarity.
     """
 
-    def __init__(self, dimensions: int = 1024):
-        self._dimensions = dimensions
+    DIMENSIONS: int = 1024
 
     def embed(self, text: str) -> list[float]:
         # Deterministic: same text → same vector.
@@ -32,7 +33,7 @@ class FakeEmbedder:
 
         seed = int(hashlib.sha256(text.encode()).hexdigest()[:8], 16)
         rng = np.random.default_rng(seed)
-        vec = rng.standard_normal(self._dimensions).astype(np.float32)
+        vec = rng.standard_normal(self.DIMENSIONS).astype(np.float32)
         vec /= np.linalg.norm(vec)  # normalize, like Titan does
         return vec.tolist()
 
@@ -47,7 +48,7 @@ class BedrockEmbedder:
     """
 
     EMBEDDING_MODEL = "amazon.titan-embed-text-v2:0"
-    DIMENSIONS = 1024
+    DIMENSIONS: int = 1024
 
     def __init__(self, bedrock_client):
         self._bedrock_client = bedrock_client
