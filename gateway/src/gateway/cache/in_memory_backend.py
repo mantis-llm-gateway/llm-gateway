@@ -1,4 +1,4 @@
-class InMemoryCacheClient:
+class InMemoryCacheBackend:
     """In-memory CacheClient for tests. TTL is accepted but ignored."""
 
     def __init__(self) -> None:
