@@ -3,12 +3,12 @@ import re
 from typing import Protocol
 
 
-class ExactCacheClient(Protocol):
+class ExactCacheBackend(Protocol):
     def get(self, key: str) -> str | None: ...
     def set(self, key: str, value: str, ttl_seconds: int) -> None: ...
 
 
-class SemanticCacheClient(Protocol):
+class SemanticCacheBackend(Protocol):
     def lookup(self, prompt: str, model: str, provider: str) -> str | None: ...
     def store(self, prompt: str, response: str, model: str, provider: str) -> None: ...
 
@@ -25,12 +25,12 @@ class PromptCache:
 
     def __init__(
         self,
-        exact_client: ExactCacheClient,
-        semantic_client: SemanticCacheClient | None = None,
+        exact_backend: ExactCacheBackend,
+        semantic_backend: SemanticCacheBackend | None = None,
         default_ttl_seconds: int = 3600,
     ):
-        self._exact = exact_client
-        self._semantic = semantic_client
+        self._exact = exact_backend
+        self._semantic = semantic_backend
         self._default_ttl_seconds = default_ttl_seconds
 
     # TODO: return additional related info (model, tokens, timestamp, cache hit/miss boolean etc)
