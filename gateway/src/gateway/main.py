@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from redis.asyncio import Redis
 
 
 class AliasConfig(BaseModel):
@@ -52,13 +53,27 @@ TARGET_RETRIES = config.target_retries
 INITIAL_RESPONSE_TIMEOUT = config.initial_response_timeout
 DEFAULT_MODEL = config.default_model
 FALLBACKS = config.fallbacks
+COOLDOWN_TTL = 60
+
+
+def check_for_duplicates_in_config() -> None:
+    for rule in ROUTING_RULES:
+        a_target_list = [target.alias for target in rule.targets]
+        a_target_list_with_fallbacks = a_target_list + FALLBACKS
+        if len(a_target_list_with_fallbacks) != len(set(a_target_list_with_fallbacks)):
+            raise ValueError(f"Duplicate targets found in config for rule '{rule.name}'")
+
+
+check_for_duplicates_in_config()
+
+redis_client = Redis(host="localhost", port=6379, decode_responses=True)
 
 
 def is_matching_rule(header_name: str, header_value: str, rule: RoutingRuleConfig) -> bool:
     return header_name == rule.match.name and header_value == rule.match.value
 
 
-def try_target(target: dict[str, str], deadline: datetime):  # type: ignore[return]
+async def try_target(target: dict[str, str], deadline: datetime):  # type: ignore[return]
     last_error = None
     attempts = 0
     max_attempts = 1 + TARGET_RETRIES
@@ -85,6 +100,8 @@ def try_target(target: dict[str, str], deadline: datetime):  # type: ignore[retu
         #   return the caught error and 'abort' in a tuple: (error, 'abort')
         # elif there is a 429 error or a timeout:
         #   the provider is rate limiting or timed out; try the next target in the chain
+        #   key = f"cooldown:{target['provider']}:{target['model']}"
+        #   await redis_client.set(key, 1, ex=COOLDOWN_TTL)
         #   return the caught error and 'failover' in a tuple: (error, 'failover')
         # elif there is a 5xx error:
         #   assign the caught error to last_error
@@ -154,8 +171,6 @@ async def chat_completions(request: Request) -> JSONResponse | None:
     else:
         attempt_chain += FALLBACKS
 
-    attempt_chain = list(dict.fromkeys(attempt_chain))
-
     resolved_attempt_chain = [
         {
             "provider": ALIASES[target].provider,
@@ -169,7 +184,10 @@ async def chat_completions(request: Request) -> JSONResponse | None:
         if datetime.now(UTC) > deadline:
             return JSONResponse(status_code=504, content={"error": "request timed out"})
 
-        (result, action) = try_target(target, deadline)
+        if await redis_client.exists(f"cooldown:{target['provider']}:{target['model']}"):
+            continue
+
+        (result, action) = await try_target(target, deadline)
 
         if action == "terminate trying targets":
             # Nothing needs to be done. The last token has already been streamed back,
