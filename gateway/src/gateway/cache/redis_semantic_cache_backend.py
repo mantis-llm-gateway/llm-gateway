@@ -50,6 +50,8 @@ class RedisSemanticCacheBackend:
         self._similarity_threshold = similarity_threshold
         self._top_k = top_k
 
+        self.ensure_index_exists()
+
     def ensure_index_exists(self) -> None:
         """Create the FT index if it doesn't already exist.
         Safe to call repeatedly."""
