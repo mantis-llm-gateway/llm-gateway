@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from gateway.main import (
+    AliasConfig,
     RoutingRuleConfig,
     RuleMatchConfig,
     TargetConfig,
@@ -13,6 +14,12 @@ from gateway.main import (
     select_entry_target,
 )
 
+FAKE_ALIASES = {
+    "model-a": AliasConfig(provider="anthropic", model="claude-3", rate_limits={}),
+    "model-b": AliasConfig(provider="openai", model="gpt-4", rate_limits={}),
+    "model-c": AliasConfig(provider="gemini", model="gemini-pro", rate_limits={}),
+}
+
 
 def make_rule(name: str, aliases: list[str]) -> RoutingRuleConfig:
     return RoutingRuleConfig(
@@ -21,6 +28,13 @@ def make_rule(name: str, aliases: list[str]) -> RoutingRuleConfig:
         match=RuleMatchConfig(name="task-type", value="test"),
         targets=[TargetConfig(alias=alias, weight=1) for alias in aliases],
     )
+
+
+# From Hubert's review for PR 9: Do you also have a test where target A is in cooldown,
+# target B is tried and all targets in cooldown return no usable target?
+# I guess that should probably wait until you have implemented the cooldown write path though.
+
+# Don't forget to add the test above.
 
 
 class TestCheckForDuplicatesInConfig:
@@ -34,7 +48,11 @@ class TestCheckForDuplicatesInConfig:
 
     def test_duplicate_within_targets_raises(self):
         rules = [make_rule("rule-1", ["model-a", "model-a"])]
-        with patch("gateway.main.ROUTING_RULES", rules), patch("gateway.main.FALLBACKS", []):
+        with (
+            patch("gateway.main.ROUTING_RULES", rules),
+            patch("gateway.main.FALLBACKS", []),
+            patch("gateway.main.ALIASES", FAKE_ALIASES),
+        ):
             with pytest.raises(ValueError, match="rule-1"):
                 check_for_duplicates_in_config()
 
@@ -43,22 +61,42 @@ class TestCheckForDuplicatesInConfig:
         with (
             patch("gateway.main.ROUTING_RULES", rules),
             patch("gateway.main.FALLBACKS", ["model-a"]),
+            patch("gateway.main.ALIASES", FAKE_ALIASES),
         ):
             with pytest.raises(ValueError, match="rule-1"):
                 check_for_duplicates_in_config()
 
     def test_error_message_contains_rule_name(self):
         rules = [make_rule("code-generation", ["model-a", "model-a"])]
-        with patch("gateway.main.ROUTING_RULES", rules), patch("gateway.main.FALLBACKS", []):
+        with (
+            patch("gateway.main.ROUTING_RULES", rules),
+            patch("gateway.main.FALLBACKS", []),
+            patch("gateway.main.ALIASES", FAKE_ALIASES),
+        ):
             with pytest.raises(ValueError, match="code-generation"):
                 check_for_duplicates_in_config()
+
+    def test_error_message_contains_provider_and_model(self):
+        rules = [make_rule("rule-1", ["model-a", "model-a"])]
+        with (
+            patch("gateway.main.ROUTING_RULES", rules),
+            patch("gateway.main.FALLBACKS", []),
+            patch("gateway.main.ALIASES", FAKE_ALIASES),
+        ):
+            with pytest.raises(ValueError, match="anthropic") as exc_info:
+                check_for_duplicates_in_config()
+            assert "claude-3" in str(exc_info.value)
 
     def test_only_first_failing_rule_is_reported(self):
         rules = [
             make_rule("rule-1", ["model-a", "model-b"]),
             make_rule("rule-2", ["model-c", "model-c"]),
         ]
-        with patch("gateway.main.ROUTING_RULES", rules), patch("gateway.main.FALLBACKS", []):
+        with (
+            patch("gateway.main.ROUTING_RULES", rules),
+            patch("gateway.main.FALLBACKS", []),
+            patch("gateway.main.ALIASES", FAKE_ALIASES),
+        ):
             with pytest.raises(ValueError, match="rule-2"):
                 check_for_duplicates_in_config()
 

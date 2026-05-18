@@ -82,3 +82,10 @@ Run all hooks manually:
 ```sh
 uv run pre-commit run --all-files
 ```
+
+### Routing and cooldown
+
+When an LLM model returns a 429 "Too Many Requests" error, the gateway will add a key that
+includes both the provider and model to a Redis cache with a TTL of at least 60 seconds.
+During the duration of the TTL, the gateway will not send any requests to that provider+model.
+Hence, the duration of the TTL is a cooldown period.

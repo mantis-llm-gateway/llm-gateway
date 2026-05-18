@@ -47,21 +47,34 @@ with open(Path(__file__).parent / "config.json") as f:
 
 app = FastAPI()
 
+# We need to write out logic that performs a thorough validation of the config file.
+# *When writing out the validation logic, make sure to check if all the weights for targets
+# in a targets array for a rule are not 0.
+#
+
 ALIASES = config.aliases
 ROUTING_RULES = config.routing_rules
 TARGET_RETRIES = config.target_retries
 INITIAL_RESPONSE_TIMEOUT = config.initial_response_timeout
 DEFAULT_MODEL = config.default_model
 FALLBACKS = config.fallbacks
-COOLDOWN_TTL = 60
+COOLDOWN_TTL = 60  # Allow for configuration of COOLDOWN_TTL in config file
 
 
 def check_for_duplicates_in_config() -> None:
     for rule in ROUTING_RULES:
         a_target_list = [target.alias for target in rule.targets]
         a_target_list_with_fallbacks = a_target_list + FALLBACKS
-        if len(a_target_list_with_fallbacks) != len(set(a_target_list_with_fallbacks)):
-            raise ValueError(f"Duplicate targets found in config for rule '{rule.name}'")
+        seen = set()
+        for target in a_target_list_with_fallbacks:
+            if target in seen:
+                msg = (
+                    f"Duplicate target found in config for rule '{rule.name}'. "
+                    f"Provider: {ALIASES[target].provider}, Model: {ALIASES[target].model}"
+                )
+                raise ValueError(msg)
+
+            seen.add(target)
 
 
 check_for_duplicates_in_config()
@@ -100,7 +113,7 @@ async def try_target(target: dict[str, str], deadline: datetime):  # type: ignor
         #   return the caught error and 'abort' in a tuple: (error, 'abort')
         # elif there is a 429 error or a timeout:
         #   the provider is rate limiting or timed out; try the next target in the chain
-        #   key = f"cooldown:{target['provider']}:{target['model']}"
+        #   key = f"gateway:cooldown:{target['provider']}:{target['model']}"
         #   await redis_client.set(key, 1, ex=COOLDOWN_TTL)
         #   return the caught error and 'failover' in a tuple: (error, 'failover')
         # elif there is a 5xx error:
@@ -147,6 +160,10 @@ async def chat_completions(request: Request) -> JSONResponse | None:
     #  as per Hubert's suggestion in PR TEA-36 Core routing logic
     now = datetime.now(UTC)
     deadline = now + timedelta(seconds=INITIAL_RESPONSE_TIMEOUT)
+
+    # prompt_cache = PromptCache()
+    # if prompt_cache.get(prompt = prompt, model = model, provider = provider):
+    # return hit
 
     # -I will use the cache class provided by Rey (teammate) here to check if the cache
     #  should be bypassed. If not, I will call cache.get(). If a cached response is found,
