@@ -1,4 +1,3 @@
-import logging
 import string
 import uuid
 from typing import Any
@@ -149,8 +148,12 @@ class RedisSemanticCacheBackend:
         sanitized_model = self._sanitize_tag(model)
         sanitized_provider = self._sanitize_tag(provider)
 
+        # TODO: add logging for production logs
+        # (requires logging config setup at project entry point)
+        # logging.info(f"Attempting to store key {key}...")
+        print(f"Attempting to store key {key}...")
+
         # Stored as a Redis HASH so vector + response + tags stay co-located.
-        logging.info(f"Attempting to store key {key}...")
         result = self._redis.hset(
             key,
             mapping={
@@ -163,8 +166,11 @@ class RedisSemanticCacheBackend:
 
         self._redis.expire(key, self._default_ttl_seconds)
 
-        # TODO: remove in prod (useful now for local testing)
-        logging.info(f"Stored key {key} with result: {result}")
+        # TODO: add logging for production logs
+        # (requires logging config setup at project entry point)
+        # logging.info(f"Stored key {key} with result: {result}")
+
+        print(f"Stored key {key} with result: {result}")
 
     @staticmethod
     def _encode_vector(embedding: list[float]) -> bytes:
