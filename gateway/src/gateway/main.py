@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from redis.asyncio import Redis
 
 
 class AliasConfig(BaseModel):
@@ -46,19 +47,46 @@ with open(Path(__file__).parent / "config.json") as f:
 
 app = FastAPI()
 
+# We need to write out logic that performs a thorough validation of the config file.
+# *When writing out the validation logic, make sure to check if all the weights for targets
+# in a targets array for a rule are not 0.
+#
+
 ALIASES = config.aliases
 ROUTING_RULES = config.routing_rules
 TARGET_RETRIES = config.target_retries
 INITIAL_RESPONSE_TIMEOUT = config.initial_response_timeout
 DEFAULT_MODEL = config.default_model
 FALLBACKS = config.fallbacks
+COOLDOWN_TTL = 60  # Allow for configuration of COOLDOWN_TTL in config file
+
+
+def check_for_duplicates_in_config() -> None:
+    for rule in ROUTING_RULES:
+        a_target_list = [target.alias for target in rule.targets]
+        a_target_list_with_fallbacks = a_target_list + FALLBACKS
+        seen = set()
+        for target in a_target_list_with_fallbacks:
+            if target in seen:
+                msg = (
+                    f"Duplicate target found in config for rule '{rule.name}'. "
+                    f"Provider: {ALIASES[target].provider}, Model: {ALIASES[target].model}"
+                )
+                raise ValueError(msg)
+
+            seen.add(target)
+
+
+check_for_duplicates_in_config()
+
+redis_client = Redis(host="localhost", port=6379, decode_responses=True)
 
 
 def is_matching_rule(header_name: str, header_value: str, rule: RoutingRuleConfig) -> bool:
     return header_name == rule.match.name and header_value == rule.match.value
 
 
-def try_target(target: dict[str, str], deadline: datetime):  # type: ignore[return]
+async def try_target(target: dict[str, str], deadline: datetime):  # type: ignore[return]
     last_error = None
     attempts = 0
     max_attempts = 1 + TARGET_RETRIES
@@ -85,6 +113,8 @@ def try_target(target: dict[str, str], deadline: datetime):  # type: ignore[retu
         #   return the caught error and 'abort' in a tuple: (error, 'abort')
         # elif there is a 429 error or a timeout:
         #   the provider is rate limiting or timed out; try the next target in the chain
+        #   key = f"gateway:cooldown:{target['provider']}:{target['model']}"
+        #   await redis_client.set(key, 1, ex=COOLDOWN_TTL)
         #   return the caught error and 'failover' in a tuple: (error, 'failover')
         # elif there is a 5xx error:
         #   assign the caught error to last_error
@@ -131,6 +161,10 @@ async def chat_completions(request: Request) -> JSONResponse | None:
     now = datetime.now(UTC)
     deadline = now + timedelta(seconds=INITIAL_RESPONSE_TIMEOUT)
 
+    # prompt_cache = PromptCache()
+    # if prompt_cache.get(prompt = prompt, model = model, provider = provider):
+    # return hit
+
     # -I will use the cache class provided by Rey (teammate) here to check if the cache
     #  should be bypassed. If not, I will call cache.get(). If a cached response is found,
     #  it will be sent back to the client and the rest of the handler will not execute;
@@ -154,8 +188,6 @@ async def chat_completions(request: Request) -> JSONResponse | None:
     else:
         attempt_chain += FALLBACKS
 
-    attempt_chain = list(dict.fromkeys(attempt_chain))
-
     resolved_attempt_chain = [
         {
             "provider": ALIASES[target].provider,
@@ -169,7 +201,10 @@ async def chat_completions(request: Request) -> JSONResponse | None:
         if datetime.now(UTC) > deadline:
             return JSONResponse(status_code=504, content={"error": "request timed out"})
 
-        (result, action) = try_target(target, deadline)
+        if await redis_client.exists(f"cooldown:{target['provider']}:{target['model']}"):
+            continue
+
+        (result, action) = await try_target(target, deadline)
 
         if action == "terminate trying targets":
             # Nothing needs to be done. The last token has already been streamed back,
