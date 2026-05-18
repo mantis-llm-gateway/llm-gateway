@@ -1,5 +1,6 @@
+from in_memory_backend import InMemoryCacheBackend
+
 from gateway.cache.cache import PromptCache
-from gateway.cache.in_memory_backend import InMemoryCacheBackend
 
 EXAMPLE_PROVIDER = "anthropic"
 EXAMPLE_MODEL = "opus-4-7"

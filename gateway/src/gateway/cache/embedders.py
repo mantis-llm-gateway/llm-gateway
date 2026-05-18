@@ -2,8 +2,6 @@ import json
 import logging
 from typing import Protocol
 
-import numpy as np
-
 
 class Embedder(Protocol):
     """
@@ -13,29 +11,6 @@ class Embedder(Protocol):
     DIMENSIONS: int
 
     def embed(self, text: str) -> list[float]: ...
-
-
-class FakeEmbedder:
-    """
-    Useful for local testing of the cache.
-
-    Use this (not BedrockEmbedder) for testing semantic cache (storing, TTL, etc.) without Bedrock.
-
-    This is only for creating fake vectors and is not for testing semantic similarity.
-    """
-
-    DIMENSIONS: int = 1024
-
-    def embed(self, text: str) -> list[float]:
-        # Deterministic: same text → same vector.
-        # Hash-based so different texts get different vectors.
-        import hashlib
-
-        seed = int(hashlib.sha256(text.encode()).hexdigest()[:8], 16)
-        rng = np.random.default_rng(seed)
-        vec = rng.standard_normal(self.DIMENSIONS).astype(np.float32)
-        vec /= np.linalg.norm(vec)  # normalize, like Titan does
-        return vec.tolist()
 
 
 class BedrockEmbedder:
@@ -67,5 +42,9 @@ class BedrockEmbedder:
 
         response_body = json.loads(response.get("body").read())
         embedding = response_body.get("embedding")
-        logging.info(f"Embedding (first 5 values): {embedding[:5]}")
+
+        # TODO: add logging for production logs
+        # (requires logging config setup at project entry point)
+        # logging.info(f"Embedding (first 5 values): {embedding[:5]}")
+        print(f"Embedding (first 5 values): {embedding[:5]}")
         return embedding
