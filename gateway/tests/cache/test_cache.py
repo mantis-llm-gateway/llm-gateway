@@ -1,46 +1,61 @@
+from in_memory_backend import InMemoryCacheBackend
+
 from gateway.cache.cache import PromptCache
-from gateway.cache.in_memory_client import InMemoryCacheClient
+
+EXAMPLE_PROVIDER = "anthropic"
+EXAMPLE_MODEL = "opus-4-7"
 
 
 def test_get_returns_none_on_miss():
-    cache = PromptCache(client=InMemoryCacheClient())
-    assert cache.get(prompt="never stored") is None
+    cache = PromptCache(exact_backend=InMemoryCacheBackend())
+    assert cache.get(prompt="never stored", model=EXAMPLE_MODEL, provider=EXAMPLE_PROVIDER) is None
 
 
 def test_set_then_get_round_trips():
-    cache = PromptCache(client=InMemoryCacheClient())
-    cache.set(prompt="what is the capital of France?", response="Paris")
-    assert cache.get(prompt="what is the capital of France?") == "Paris"
+    cache = PromptCache(exact_backend=InMemoryCacheBackend())
+    cache.set(
+        prompt="what is the capital of France?",
+        response="Paris",
+        model=EXAMPLE_MODEL,
+        provider=EXAMPLE_PROVIDER,
+    )
+    assert (
+        cache.get(
+            prompt="what is the capital of France?", model=EXAMPLE_MODEL, provider=EXAMPLE_PROVIDER
+        )
+        == "Paris"
+    )
 
 
 def test_whitespace_variants_hit_the_same_entry():
-    cache = PromptCache(client=InMemoryCacheClient())
-    cache.set(prompt="hello world", response="hi")
-    assert cache.get(prompt="hello   world") == "hi"
-    assert cache.get(prompt="  hello world  ") == "hi"
-    assert cache.get(prompt="hello\tworld") == "hi"
-    assert cache.get(prompt="hello\nworld") == "hi"
+    cache = PromptCache(exact_backend=InMemoryCacheBackend())
+    cache.set(prompt="hello world", response="hi", model=EXAMPLE_MODEL, provider=EXAMPLE_PROVIDER)
+    assert cache.get(prompt="hello   world", model=EXAMPLE_MODEL, provider=EXAMPLE_PROVIDER) == "hi"
+    assert (
+        cache.get(prompt="  hello world  ", model=EXAMPLE_MODEL, provider=EXAMPLE_PROVIDER) == "hi"
+    )
+    assert cache.get(prompt="hello\tworld", model=EXAMPLE_MODEL, provider=EXAMPLE_PROVIDER) == "hi"
+    assert cache.get(prompt="hello\nworld", model=EXAMPLE_MODEL, provider=EXAMPLE_PROVIDER) == "hi"
 
 
 def test_prompt_is_case_sensitive():
-    cache = PromptCache(client=InMemoryCacheClient())
-    cache.set(prompt="Apple", response="upper")
-    assert cache.get(prompt="apple") is None
+    cache = PromptCache(exact_backend=InMemoryCacheBackend())
+    cache.set(prompt="Apple", response="upper", model=EXAMPLE_MODEL, provider=EXAMPLE_PROVIDER)
+    assert cache.get(prompt="apple", model=EXAMPLE_MODEL, provider=EXAMPLE_PROVIDER) is None
 
 
 def test_different_models_do_not_share_entries():
-    cache = PromptCache(client=InMemoryCacheClient())
-    cache.set(prompt="hi", response="from-gpt-4", model="gpt-4")
-    assert cache.get(prompt="hi", model="gpt-4") == "from-gpt-4"
-    assert cache.get(prompt="hi", model="claude-opus-4-7") is None
-    assert cache.get(prompt="hi") is None
+    cache = PromptCache(exact_backend=InMemoryCacheBackend())
+    cache.set(prompt="hi", response="from-gpt-4", model="gpt-4", provider="openai")
+    assert cache.get(prompt="hi", model="gpt-4", provider="openai") == "from-gpt-4"
+    assert cache.get(prompt="hi", model="gpt-5.5", provider="openai") is None
 
 
 def test_different_providers_do_not_share_entries():
-    cache = PromptCache(client=InMemoryCacheClient())
-    cache.set(prompt="hi", response="from-openai", provider="openai")
-    assert cache.get(prompt="hi", provider="openai") == "from-openai"
-    assert cache.get(prompt="hi", provider="anthropic") is None
+    cache = PromptCache(exact_backend=InMemoryCacheBackend())
+    cache.set(prompt="hi", response="from-openai", model="gpt-4.5", provider="openai")
+    assert cache.get(prompt="hi", model="gpt-4.5", provider="openai") == "from-openai"
+    assert cache.get(prompt="hi", model="opus-4-7", provider="anthropic") is None
 
 
 class RecordingClient:
@@ -56,15 +71,23 @@ class RecordingClient:
 
 def test_set_uses_default_ttl_when_none_passed():
     recorder = RecordingClient()
-    cache = PromptCache(client=recorder, default_ttl_seconds=120)
-    cache.set(prompt="anything", response="response")
+    cache = PromptCache(exact_backend=recorder, default_ttl_seconds=120)
+    cache.set(
+        prompt="anything", response="response", model=EXAMPLE_MODEL, provider=EXAMPLE_PROVIDER
+    )
     assert recorder.last_ttl == 120
 
 
 def test_set_uses_explicit_ttl_when_passed():
     recorder = RecordingClient()
-    cache = PromptCache(client=recorder, default_ttl_seconds=120)
-    cache.set(prompt="anything", response="response", ttl_seconds=99)
+    cache = PromptCache(exact_backend=recorder, default_ttl_seconds=120)
+    cache.set(
+        prompt="anything",
+        response="response",
+        model=EXAMPLE_MODEL,
+        provider=EXAMPLE_PROVIDER,
+        ttl_seconds=99,
+    )
     assert recorder.last_ttl == 99
 
 

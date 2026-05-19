@@ -1,5 +1,5 @@
-class InMemoryCacheClient:
-    """In-memory CacheClient for tests. TTL is accepted but ignored."""
+class InMemoryCacheBackend:
+    """In-memory ExactCacheBackend for tests. TTL is accepted but ignored."""
 
     def __init__(self) -> None:
         self._store: dict[str, str] = {}
