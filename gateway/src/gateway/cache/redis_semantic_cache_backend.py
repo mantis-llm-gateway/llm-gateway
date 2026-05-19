@@ -8,13 +8,9 @@ from redis.exceptions import ResponseError
 
 from gateway.cache.embedders import Embedder
 
+
 # TODO: add tests before calling this in PromptCache constructor
 # and working on the exact-match + semantic cache ordering
-
-# Used to sanitize model and provider tags when storing and looking up
-_ALLOWED = set(string.ascii_letters + string.digits + "_.")
-
-
 class RedisSemanticCacheBackend:
     """Semantic cache backed by Redis (RediSearch via redis-stack; ElastiCache + Valkey in prod).
 
@@ -34,6 +30,9 @@ class RedisSemanticCacheBackend:
     REDIS_INDEX_NAME = "idx:semantic"
 
     PREFIX = "prompt:semantic:"
+
+    # Used to sanitize model and provider tags when storing and looking up
+    ALLOWED_TAG_CHARS = set(string.ascii_letters + string.digits + "_.")
 
     def __init__(
         self,
@@ -178,18 +177,18 @@ class RedisSemanticCacheBackend:
         to match the format the Redis vector index expects."""
         return np.array(embedding, dtype="<f4").tobytes()
 
-    @staticmethod
-    def _sanitize_tag(value: str) -> str:
+    @classmethod
+    def _sanitize_tag(cls, value: str) -> str:
         """Keep safe chars in RediSearch tag filters; replace unsafe with "_"
 
-        Chars outside _ALLOWED (e.g. "-", which FT.SEARCH parses as the negation
+        Chars outside ALLOWED_TAG_CHARS (e.g. "-", which FT.SEARCH parses as the negation
         operator) would break TAG filters. Applying the same replacement on store
         and lookup means the query filter matches the sanitized form that was
         actually written to Redis.
 
         Applied to `model` and `provider` on both `store` and `lookup`.
         """
-        return "".join(char if char in _ALLOWED else "_" for char in value)
+        return "".join(char if char in cls.ALLOWED_TAG_CHARS else "_" for char in value)
 
     @staticmethod
     def _parse_search_results(raw: Any) -> list[dict[str, Any]]:
