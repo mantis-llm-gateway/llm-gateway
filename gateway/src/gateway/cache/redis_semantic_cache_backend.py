@@ -182,6 +182,11 @@ class RedisSemanticCacheBackend:
     def _sanitize_tag(value: str) -> str:
         """Keep safe chars in RediSearch tag filters; replace unsafe with "_"
 
+        Chars outside _ALLOWED (e.g. "-", which FT.SEARCH parses as the negation
+        operator) would break TAG filters. Applying the same replacement on store
+        and lookup means the query filter matches the sanitized form that was
+        actually written to Redis.
+
         Applied to `model` and `provider` on both `store` and `lookup`.
         """
         return "".join(char if char in _ALLOWED else "_" for char in value)
