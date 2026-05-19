@@ -8,7 +8,7 @@ CACHE_CONVERSATION_HISTORY_THRESHOLD = 3
 # TODO: (future bypass conditions) handle streaming and opt-out headers
 def should_skip_cache(temperature: float | None = None, total_messages: int | None = None) -> bool:
     if (temperature is not None and temperature > CACHE_TEMP_THRESHOLD) or (
-        total_messages is not None and total_messages > CACHE_TEMP_THRESHOLD
+        total_messages is not None and total_messages > CACHE_CONVERSATION_HISTORY_THRESHOLD
     ):
         return True
     return False
