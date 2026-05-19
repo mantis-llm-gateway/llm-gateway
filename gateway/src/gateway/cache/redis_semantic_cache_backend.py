@@ -22,14 +22,12 @@ class RedisSemanticCacheBackend:
     # TODO: verify FT.SEARCH, FT.CREATE syntax against ElastiCache w/ Valkey before prod deploy.
     # Will be mostly the same, but minor syntax differences may exist
 
-    # TODO: make configurable from env variables (local) or config file (production)
-    DEFAULT_TTL_SECONDS = 3600
-    DEFAULT_SIMILARITY_THRESHOLD = 0.8
-    DEFAULT_TOP_K = 3
-
+    PREFIX = "prompt:semantic:"
     REDIS_INDEX_NAME = "idx:semantic"
 
-    PREFIX = "prompt:semantic:"
+    # TODO: make configurable from env variables (local) or config file (production)
+    DEFAULT_SIMILARITY_THRESHOLD = 0.8
+    DEFAULT_TOP_K = 3
 
     # Used to sanitize model and provider tags when storing and looking up
     ALLOWED_TAG_CHARS = set(string.ascii_letters + string.digits + "_.")
@@ -38,13 +36,11 @@ class RedisSemanticCacheBackend:
         self,
         redis_client: redis.Redis,
         embedder: Embedder,
-        default_ttl_seconds: int = DEFAULT_TTL_SECONDS,
         similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
         top_k: int = DEFAULT_TOP_K,
     ):
         self._redis = redis_client
         self._embedder = embedder
-        self._default_ttl_seconds = default_ttl_seconds
         self._similarity_threshold = similarity_threshold
         self._top_k = top_k
 
@@ -129,16 +125,20 @@ class RedisSemanticCacheBackend:
 
         if len(matches) > 0 and matches[0]["similarity"] >= self._similarity_threshold:
             # TODO: think about logging the other matches for threshold tuning?
+            print(f"Semantic cache hit with similarity: {matches[0]['similarity']}")
             return matches[0]["payload"]
         else:
+            print("Semantic cache lookup miss")
             return None
 
-    def store(self, prompt: str, response: str, model: str, provider: str) -> None:
+    def store(
+        self, prompt: str, response: str, model: str, provider: str, ttl_seconds: int
+    ) -> None:
         """Store a prompt/response pair under a fresh UUID key.
 
         Embeds the prompt (the vector is what later lookups search against) and
         writes a Redis HASH with the vector, response payload, and sanitized
-        provider/model tags. Entry expires after `default_ttl_seconds`.
+        provider/model tags.
         """
         embedding = self._embedder.embed(prompt)
         key_id = uuid.uuid4().hex
@@ -150,10 +150,10 @@ class RedisSemanticCacheBackend:
         # TODO: add logging for production logs
         # (requires logging config setup at project entry point)
         # logging.info(f"Attempting to store key {key}...")
-        print(f"Attempting to store key {key}...")
+        print("We're trying to store (`.set`) in the semantic cache now...")
 
         # Stored as a Redis HASH so vector + response + tags stay co-located.
-        result = self._redis.hset(
+        self._redis.hset(
             key,
             mapping={
                 "vector": self._encode_vector(embedding),
@@ -163,13 +163,15 @@ class RedisSemanticCacheBackend:
             },
         )
 
-        self._redis.expire(key, self._default_ttl_seconds)
+        print(f"Attempting to store key {key[:25]}... with TTL of {ttl_seconds} seconds")
+
+        self._redis.expire(key, ttl_seconds)
 
         # TODO: add logging for production logs
         # (requires logging config setup at project entry point)
         # logging.info(f"Stored key {key} with result: {result}")
 
-        print(f"Stored key {key} with result: {result}")
+        print(f"Stored key {key[:25]}... with TTL of {ttl_seconds} seconds\n")
 
     @staticmethod
     def _encode_vector(embedding: list[float]) -> bytes:
