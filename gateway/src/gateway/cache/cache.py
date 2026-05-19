@@ -68,9 +68,7 @@ class PromptCache:
             pass
 
     @classmethod
-    def _build_exact_key(
-        cls, *, prompt: str, model: str | None = None, provider: str | None = None
-    ) -> str:
+    def _build_exact_key(cls, *, prompt: str, model: str, provider: str) -> str:
         """
         Builds a key using the class prefix ('prompt:exact:'), provider, model,
         and a hash of the prompt text with whitespace removed
