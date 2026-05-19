@@ -10,24 +10,27 @@ class ExactCacheBackend(Protocol):
 
 class SemanticCacheBackend(Protocol):
     def lookup(self, prompt: str, model: str, provider: str) -> str | None: ...
-    def store(self, prompt: str, response: str, model: str, provider: str) -> None: ...
+    def store(
+        self, prompt: str, response: str, model: str, provider: str, ttl_seconds: int
+    ) -> None: ...
 
 
 class PromptCache:
     # TODO: look into eviction policies
-    """Exact-match prompt cache.
+    """Exact-match prompt cache and semantic cache (optional)
 
-    Callers pass `prompt`, `model`, `provider` (required) to `get`/`set`.
+    Callers pass `prompt`, `model`, `provider` (all required) to `get`/`set`.
     Key derivation is internal.
     """
 
+    DEFAULT_TTL_SECONDS = 3600
     PREFIX = "prompt:exact:"
 
     def __init__(
         self,
         exact_backend: ExactCacheBackend,
         semantic_backend: SemanticCacheBackend | None = None,
-        default_ttl_seconds: int = 3600,
+        default_ttl_seconds: int = DEFAULT_TTL_SECONDS,
     ):
         self._exact = exact_backend
         self._semantic = semantic_backend
@@ -40,13 +43,16 @@ class PromptCache:
         Backend failures will be raised (contract TBD with Redis adapter).
         """
         key = self._build_exact_key(prompt=prompt, model=model, provider=provider)
-        hit = self._exact.get(key)
+        print("We're trying to get a match (`.get`) in the exact-match cache now...")
+        exact_hit = self._exact.get(key)
+        print(f"Result of that get: {exact_hit!r}\n")
 
-        if hit is None and self._semantic is not None:
-            # TODO: do a semantic cache search
-            pass
+        if exact_hit is None and self._semantic is not None:
+            print("We're trying to lookup (`.get`) in the semantic cache now...")
+            hit = self._semantic.lookup(prompt=prompt, model=model, provider=provider)
+            print(f"Result of that lookup: {hit!r}\n")
 
-        return hit
+        return exact_hit
 
     # TODO: store response metadata (model, tokens, timestamp) when we add observability.
     # Cached values are raw response strings for now.
@@ -59,13 +65,20 @@ class PromptCache:
         provider: str,
         ttl_seconds: int | None = None,
     ) -> None:
+        """
+        Omit `ttl_seconds` to use the cache's configured default TTL
+        Pass an int to override per call.
+        """
         key = self._build_exact_key(prompt=prompt, model=model, provider=provider)
+
         ttl = ttl_seconds if ttl_seconds is not None else self._default_ttl_seconds
+
         self._exact.set(key, response, ttl)
 
         if self._semantic is not None:
-            # TODO: add to semantic cache
-            pass
+            self._semantic.store(
+                prompt=prompt, response=response, model=model, provider=provider, ttl_seconds=ttl
+            )
 
     @classmethod
     def _build_exact_key(cls, *, prompt: str, model: str, provider: str) -> str:
