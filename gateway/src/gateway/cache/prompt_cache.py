@@ -24,11 +24,12 @@ class PromptCache:
 
     Example:
     exact = RedisExactCacheBackend(redis_client)
-    semantic = RedisSemanticCacheBackend(redis_client, embedder)  # optional
+    semantic = RedisSemanticCacheBackend(redis_client, embedder)  # optional (1/2)
+    await semantic.ensure_index_exists() # optional (2/2)                          #
     cache = PromptCache(exact_backend=exact, semantic_backend=semantic)
 
-    cache.set(prompt=..., response=..., model=..., provider=...)
-    hit = cache.get(prompt=..., model=..., provider=...)
+    await cache.set(prompt=..., response=..., model=..., provider=...)
+    hit = await cache.get(prompt=..., model=..., provider=...)
     """
 
     DEFAULT_TTL_SECONDS = 3600
