@@ -48,8 +48,6 @@ with open(Path(__file__).parent / "config.json") as f:
     config = Config(**json.load(f))
 
 
-# app = FastAPI()
-
 # We need to write out logic that performs a thorough validation of the config file.
 # *When writing out the validation logic, make sure to check if all the weights for targets
 # in a targets array for a rule are not 0.
