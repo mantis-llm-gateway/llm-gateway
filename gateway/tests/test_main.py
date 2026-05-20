@@ -1,23 +1,23 @@
 import random
-from unittest.mock import patch
 
 import pytest
 
 from gateway.main import (
-    AliasConfig,
     RoutingRuleConfig,
-    RuleMatchConfig,
     TargetConfig,
+    TargetCostConfig,
     build_attempt_chain,
-    check_for_duplicates_in_config,
     is_matching_rule,
     select_entry_target,
+    sort_cost_map,
 )
+from gateway.models import AliasConfig, Config, CostBasedRoutingConfig, RuleMatchConfig
+from gateway.validation import validate_no_duplicates_in_config
 
 FAKE_ALIASES = {
-    "model-a": AliasConfig(provider="anthropic", model="claude-3", rate_limits={}),
-    "model-b": AliasConfig(provider="openai", model="gpt-4", rate_limits={}),
-    "model-c": AliasConfig(provider="gemini", model="gemini-pro", rate_limits={}),
+    "model-a": AliasConfig(provider="anthropic", model="claude-3"),
+    "model-b": AliasConfig(provider="openai", model="gpt-4"),
+    "model-c": AliasConfig(provider="gemini", model="gemini-pro"),
 }
 
 
@@ -27,6 +27,21 @@ def make_rule(name: str, aliases: list[str]) -> RoutingRuleConfig:
         name=name,
         match=RuleMatchConfig(name="task-type", value="test"),
         targets=[TargetConfig(alias=alias, weight=1) for alias in aliases],
+    )
+
+
+def make_config(
+    rules: list[RoutingRuleConfig], fallbacks: list[str], aliases: dict | None = None
+) -> Config:
+    return Config(
+        aliases=aliases if aliases is not None else FAKE_ALIASES,
+        routing_rules=rules,
+        target_retries=3,
+        fallbacks=fallbacks,
+        initial_response_timeout=30,
+        default_model="model-a",
+        cooldown_ttl=60,
+        cost_based_routing=CostBasedRoutingConfig(enabled=False, cost_map=[]),
     )
 
 
@@ -40,73 +55,40 @@ def make_rule(name: str, aliases: list[str]) -> RoutingRuleConfig:
 class TestCheckForDuplicatesInConfig:
     def test_no_duplicates_passes(self):
         rules = [make_rule("rule-1", ["model-a", "model-b"])]
-        with (
-            patch("gateway.main.ROUTING_RULES", rules),
-            patch("gateway.main.FALLBACKS", ["model-c"]),
-        ):
-            check_for_duplicates_in_config()
+        validate_no_duplicates_in_config(make_config(rules, fallbacks=["model-c"]))
 
     def test_duplicate_within_targets_raises(self):
         rules = [make_rule("rule-1", ["model-a", "model-a"])]
-        with (
-            patch("gateway.main.ROUTING_RULES", rules),
-            patch("gateway.main.FALLBACKS", []),
-            patch("gateway.main.ALIASES", FAKE_ALIASES),
-        ):
-            with pytest.raises(ValueError, match="rule-1"):
-                check_for_duplicates_in_config()
+        with pytest.raises(ValueError, match="rule-1"):
+            validate_no_duplicates_in_config(make_config(rules, fallbacks=[]))
 
     def test_duplicate_between_targets_and_fallbacks_raises(self):
         rules = [make_rule("rule-1", ["model-a", "model-b"])]
-        with (
-            patch("gateway.main.ROUTING_RULES", rules),
-            patch("gateway.main.FALLBACKS", ["model-a"]),
-            patch("gateway.main.ALIASES", FAKE_ALIASES),
-        ):
-            with pytest.raises(ValueError, match="rule-1"):
-                check_for_duplicates_in_config()
+        with pytest.raises(ValueError, match="rule-1"):
+            validate_no_duplicates_in_config(make_config(rules, fallbacks=["model-a"]))
 
     def test_error_message_contains_rule_name(self):
         rules = [make_rule("code-generation", ["model-a", "model-a"])]
-        with (
-            patch("gateway.main.ROUTING_RULES", rules),
-            patch("gateway.main.FALLBACKS", []),
-            patch("gateway.main.ALIASES", FAKE_ALIASES),
-        ):
-            with pytest.raises(ValueError, match="code-generation"):
-                check_for_duplicates_in_config()
+        with pytest.raises(ValueError, match="code-generation"):
+            validate_no_duplicates_in_config(make_config(rules, fallbacks=[]))
 
     def test_error_message_contains_provider_and_model(self):
         rules = [make_rule("rule-1", ["model-a", "model-a"])]
-        with (
-            patch("gateway.main.ROUTING_RULES", rules),
-            patch("gateway.main.FALLBACKS", []),
-            patch("gateway.main.ALIASES", FAKE_ALIASES),
-        ):
-            with pytest.raises(ValueError, match="anthropic") as exc_info:
-                check_for_duplicates_in_config()
-            assert "claude-3" in str(exc_info.value)
+        with pytest.raises(ValueError, match="anthropic") as exc_info:
+            validate_no_duplicates_in_config(make_config(rules, fallbacks=[]))
+        assert "claude-3" in str(exc_info.value)
 
     def test_only_first_failing_rule_is_reported(self):
         rules = [
             make_rule("rule-1", ["model-a", "model-b"]),
             make_rule("rule-2", ["model-c", "model-c"]),
         ]
-        with (
-            patch("gateway.main.ROUTING_RULES", rules),
-            patch("gateway.main.FALLBACKS", []),
-            patch("gateway.main.ALIASES", FAKE_ALIASES),
-        ):
-            with pytest.raises(ValueError, match="rule-2"):
-                check_for_duplicates_in_config()
+        with pytest.raises(ValueError, match="rule-2"):
+            validate_no_duplicates_in_config(make_config(rules, fallbacks=[]))
 
     def test_empty_targets_passes(self):
         rules = [make_rule("rule-1", [])]
-        with (
-            patch("gateway.main.ROUTING_RULES", rules),
-            patch("gateway.main.FALLBACKS", ["model-a"]),
-        ):
-            check_for_duplicates_in_config()
+        validate_no_duplicates_in_config(make_config(rules, fallbacks=["model-a"]))
 
 
 class TestIsMatchingRule:
@@ -193,3 +175,51 @@ class TestBuildAttemptChain:
         ]
         chain = build_attempt_chain("openai-gpt4", targets)
         assert set(chain) == {"openai-gpt4", "anthropic-claude", "gemini-pro"}
+
+
+class TestSortCostMap:
+    def test_sorts_by_input_cost_ascending(self):
+        items = [
+            TargetCostConfig(
+                alias="expensive", input_tokens_cost_per_1M=10.0, output_tokens_cost_per_1M=1.0
+            ),
+            TargetCostConfig(
+                alias="cheap", input_tokens_cost_per_1M=1.0, output_tokens_cost_per_1M=1.0
+            ),
+            TargetCostConfig(
+                alias="mid", input_tokens_cost_per_1M=5.0, output_tokens_cost_per_1M=1.0
+            ),
+        ]
+        result = sort_cost_map(items)
+        assert [r.alias for r in result] == ["cheap", "mid", "expensive"]
+
+    def test_tiebreaks_by_output_cost_ascending(self):
+        items = [
+            TargetCostConfig(
+                alias="same-input-high-output",
+                input_tokens_cost_per_1M=5.0,
+                output_tokens_cost_per_1M=20.0,
+            ),
+            TargetCostConfig(
+                alias="same-input-low-output",
+                input_tokens_cost_per_1M=5.0,
+                output_tokens_cost_per_1M=5.0,
+            ),
+        ]
+        result = sort_cost_map(items)
+        assert [r.alias for r in result] == ["same-input-low-output", "same-input-high-output"]
+
+    def test_mixed_input_and_output_costs(self):
+        items = [
+            TargetCostConfig(
+                alias="a", input_tokens_cost_per_1M=3.0, output_tokens_cost_per_1M=10.0
+            ),
+            TargetCostConfig(
+                alias="b", input_tokens_cost_per_1M=1.0, output_tokens_cost_per_1M=50.0
+            ),
+            TargetCostConfig(
+                alias="c", input_tokens_cost_per_1M=3.0, output_tokens_cost_per_1M=2.0
+            ),
+        ]
+        result = sort_cost_map(items)
+        assert [r.alias for r in result] == ["b", "c", "a"]

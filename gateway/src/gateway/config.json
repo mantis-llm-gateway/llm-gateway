@@ -108,7 +108,7 @@
       "name": "Free tier",
       "match": {"name": "user-tier", "value": "free"},
       "targets": [
-        {"alias": "GPT-5 nano", "weight": 2}, {"alias": "GPT-5 nano - Azure", "weight": 4}
+        {"alias": "GPT-5 Nano", "weight": 2}, {"alias": "GPT-5 Nano - Azure", "weight": 4}
       ]
     },
     {

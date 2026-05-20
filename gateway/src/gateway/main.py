@@ -31,7 +31,9 @@ IS_COST_BASED_ROUTING_ENABLED = config.cost_based_routing.enabled
 
 
 def sort_cost_map(cost_map: list[TargetCostConfig]):
-    return sorted(cost_map, key=lambda item: item.input_tokens_cost_per_1M)
+    return sorted(
+        cost_map, key=lambda item: (item.input_tokens_cost_per_1M, item.output_tokens_cost_per_1M)
+    )
 
 
 SORTED_COST_MAP = sort_cost_map(config.cost_based_routing.cost_map)
