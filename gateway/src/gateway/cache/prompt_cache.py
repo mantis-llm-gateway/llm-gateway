@@ -17,10 +17,10 @@ class SemanticCacheBackend(Protocol):
 
 class PromptCache:
     # TODO: look into eviction policies
-    """Exact-match prompt cache and semantic cache (optional)
+    """Two-tier prompt cache: exact-match with optional semantic fallback.
 
-    Callers pass `prompt`, `model`, `provider` (all required) to `get`/`set`.
-    Key derivation is internal.
+    Callers pass `prompt`, `model`, `provider` to `get`/`set`; key derivation is internal.
+    `get` checks exact first, then semantic on miss. `set` writes to both.
     """
 
     DEFAULT_TTL_SECONDS = 3600
@@ -43,16 +43,16 @@ class PromptCache:
         Backend failures will be raised (contract TBD with Redis adapter).
         """
         key = self._build_exact_key(prompt=prompt, model=model, provider=provider)
-        print("We're trying to get a match (`.get`) in the exact-match cache now...")
-        exact_hit = self._exact.get(key)
-        print(f"Result of that get: {exact_hit!r}\n")
+        print("Trying to do an exact-match cache lookup (`.get`)...")
+        hit = self._exact.get(key)
+        print(f"Result of the exact-match cache lookup: {hit!r}\n")
 
-        if exact_hit is None and self._semantic is not None:
-            print("We're trying to lookup (`.get`) in the semantic cache now...")
+        if hit is None and self._semantic is not None:
+            print("Trying to do a semantic cache lookup (`.get`)...")
             hit = self._semantic.lookup(prompt=prompt, model=model, provider=provider)
-            print(f"Result of that lookup: {hit!r}\n")
+            print(f"Result of the semantic cache lookup: {hit!r}\n")
 
-        return exact_hit
+        return hit
 
     # TODO: store response metadata (model, tokens, timestamp) when we add observability.
     # Cached values are raw response strings for now.
