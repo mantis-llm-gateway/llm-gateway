@@ -1,4 +1,3 @@
-# tests/conftest.py  (new file)
 import pytest
 from fastapi.testclient import TestClient
 
