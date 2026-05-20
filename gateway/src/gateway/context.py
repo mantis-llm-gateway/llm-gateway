@@ -41,4 +41,4 @@ def _build_redis(settings: Settings) -> Redis:
 
 async def shutdown_context(ctx: AppContext) -> None:
     """Close clients held by the context. Called from the FastAPI lifespan."""
-    await ctx.redis.close()
+    await ctx.redis.aclose()
