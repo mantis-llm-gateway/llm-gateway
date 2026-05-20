@@ -5,52 +5,20 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from redis.asyncio import Redis
 
+from gateway.models import Config, RoutingRuleConfig, TargetConfig, TargetCostConfig
+from gateway.validation import validate_config
 
-class AliasConfig(BaseModel):
-    provider: str
-    model: str
-    rate_limits: dict[str, int]
+app = FastAPI()
 
-
-class RuleMatchConfig(BaseModel):
-    name: str
-    value: str
-
-
-class TargetConfig(BaseModel):
-    alias: str
-    weight: int
-
-
-class RoutingRuleConfig(BaseModel):
-    id: str
-    name: str
-    match: RuleMatchConfig
-    targets: list[TargetConfig]
-
-
-class Config(BaseModel):
-    aliases: dict[str, AliasConfig]
-    routing_rules: list[RoutingRuleConfig]
-    target_retries: int
-    initial_response_timeout: int
-    default_model: str
-    fallbacks: list[str]
-
+redis_client = Redis(host="localhost", port=6379, decode_responses=True)
 
 with open(Path(__file__).parent / "config.json") as f:
     config = Config(**json.load(f))
 
 
-app = FastAPI()
-
-# We need to write out logic that performs a thorough validation of the config file.
-# *When writing out the validation logic, make sure to check if all the weights for targets
-# in a targets array for a rule are not 0.
-#
+validate_config(config)
 
 ALIASES = config.aliases
 ROUTING_RULES = config.routing_rules
@@ -58,28 +26,15 @@ TARGET_RETRIES = config.target_retries
 INITIAL_RESPONSE_TIMEOUT = config.initial_response_timeout
 DEFAULT_MODEL = config.default_model
 FALLBACKS = config.fallbacks
-COOLDOWN_TTL = 60  # Allow for configuration of COOLDOWN_TTL in config file
+COOLDOWN_TTL = config.cooldown_ttl  # Allow for configuration of COOLDOWN_TTL in config file
+IS_COST_BASED_ROUTING_ENABLED = config.cost_based_routing.enabled
 
 
-def check_for_duplicates_in_config() -> None:
-    for rule in ROUTING_RULES:
-        a_target_list = [target.alias for target in rule.targets]
-        a_target_list_with_fallbacks = a_target_list + FALLBACKS
-        seen = set()
-        for target in a_target_list_with_fallbacks:
-            if target in seen:
-                msg = (
-                    f"Duplicate target found in config for rule '{rule.name}'. "
-                    f"Provider: {ALIASES[target].provider}, Model: {ALIASES[target].model}"
-                )
-                raise ValueError(msg)
-
-            seen.add(target)
+def sort_cost_map(cost_map: list[TargetCostConfig]):
+    return sorted(cost_map, key=lambda item: item.input_tokens_cost_per_1M)
 
 
-check_for_duplicates_in_config()
-
-redis_client = Redis(host="localhost", port=6379, decode_responses=True)
+SORTED_COST_MAP = sort_cost_map(config.cost_based_routing.cost_map)
 
 
 def is_matching_rule(header_name: str, header_value: str, rule: RoutingRuleConfig) -> bool:
@@ -174,19 +129,23 @@ async def chat_completions(request: Request) -> JSONResponse | None:
     routing_rule_header_name: str = list(metadata.keys())[0]
     routing_rule_header_value: str = list(metadata.values())[0]
 
-    found_matching_rule = False
-    for rule in ROUTING_RULES:
-        if is_matching_rule(routing_rule_header_name, routing_rule_header_value, rule):
-            found_matching_rule = True
-            entry_target = select_entry_target(rule.targets)
-            attempt_chain = build_attempt_chain(entry_target, rule.targets)
-
-            break
-
-    if not found_matching_rule:
-        attempt_chain = [DEFAULT_MODEL] + FALLBACKS
-    else:
+    if IS_COST_BASED_ROUTING_ENABLED:
+        attempt_chain = [target.alias for target in SORTED_COST_MAP]
         attempt_chain += FALLBACKS
+    else:
+        found_matching_rule = False
+        for rule in ROUTING_RULES:
+            if is_matching_rule(routing_rule_header_name, routing_rule_header_value, rule):
+                found_matching_rule = True
+                entry_target = select_entry_target(rule.targets)
+                attempt_chain = build_attempt_chain(entry_target, rule.targets)
+
+                break
+
+        if not found_matching_rule:
+            attempt_chain = [DEFAULT_MODEL] + FALLBACKS
+        else:
+            attempt_chain += FALLBACKS
 
     resolved_attempt_chain = [
         {
