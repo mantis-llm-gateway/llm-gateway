@@ -1,4 +1,4 @@
-from in_memory_backend import InMemoryCacheBackend, InMemorySemanticBackend
+from in_memory_backends import InMemoryCacheBackend, InMemorySemanticBackend
 
 from gateway.cache.prompt_cache import PromptCache
 
