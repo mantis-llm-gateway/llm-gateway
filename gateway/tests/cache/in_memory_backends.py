@@ -4,10 +4,10 @@ class InMemoryCacheBackend:
     def __init__(self) -> None:
         self._store: dict[str, str] = {}
 
-    def get(self, key: str) -> str | None:
+    async def get(self, key: str) -> str | None:
         return self._store.get(key)
 
-    def set(self, key: str, value: str, ttl_seconds: int) -> None:
+    async def set(self, key: str, value: str, ttl_seconds: int) -> None:
         self._store[key] = value
 
 
@@ -19,11 +19,11 @@ class InMemorySemanticBackend:
         self.lookup_calls: list[dict] = []
         self.store_calls: list[dict] = []
 
-    def lookup(self, prompt: str, model: str, provider: str) -> str | None:
+    async def lookup(self, prompt: str, model: str, provider: str) -> str | None:
         self.lookup_calls.append({"prompt": prompt, "model": model, "provider": provider})
         return self._store.get((prompt, model, provider))
 
-    def store(
+    async def store(
         self, prompt: str, response: str, model: str, provider: str, ttl_seconds: int
     ) -> None:
         self.store_calls.append(
