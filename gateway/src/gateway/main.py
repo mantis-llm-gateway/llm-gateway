@@ -1,12 +1,15 @@
 import json
 import random
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from redis.asyncio import Redis
+
+from gateway.context import AppContext, build_context, shutdown_context
+from gateway.settings import get_settings
 
 
 class AliasConfig(BaseModel):
@@ -45,12 +48,11 @@ with open(Path(__file__).parent / "config.json") as f:
     config = Config(**json.load(f))
 
 
-app = FastAPI()
+# app = FastAPI()
 
 # We need to write out logic that performs a thorough validation of the config file.
 # *When writing out the validation logic, make sure to check if all the weights for targets
 # in a targets array for a rule are not 0.
-#
 
 ALIASES = config.aliases
 ROUTING_RULES = config.routing_rules
@@ -58,7 +60,6 @@ TARGET_RETRIES = config.target_retries
 INITIAL_RESPONSE_TIMEOUT = config.initial_response_timeout
 DEFAULT_MODEL = config.default_model
 FALLBACKS = config.fallbacks
-COOLDOWN_TTL = 60  # Allow for configuration of COOLDOWN_TTL in config file
 
 
 def check_for_duplicates_in_config() -> None:
@@ -79,7 +80,22 @@ def check_for_duplicates_in_config() -> None:
 
 check_for_duplicates_in_config()
 
-redis_client = Redis(host="localhost", port=6379, decode_responses=True)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = get_settings()
+    app.state.context = build_context(settings)
+    try:
+        yield
+    finally:
+        await shutdown_context(app.state.context)
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+def get_context(request: Request) -> AppContext:
+    return request.app.state.context
 
 
 def is_matching_rule(header_name: str, header_value: str, rule: RoutingRuleConfig) -> bool:
@@ -114,7 +130,7 @@ async def try_target(target: dict[str, str], deadline: datetime):  # type: ignor
         # elif there is a 429 error or a timeout:
         #   the provider is rate limiting or timed out; try the next target in the chain
         #   key = f"gateway:cooldown:{target['provider']}:{target['model']}"
-        #   await redis_client.set(key, 1, ex=COOLDOWN_TTL)
+        #   await ctx.redis.set(key, 1, ex=ctx.settings.cooldown_ttl_seconds)
         #   return the caught error and 'failover' in a tuple: (error, 'failover')
         # elif there is a 5xx error:
         #   assign the caught error to last_error
@@ -154,7 +170,10 @@ def build_attempt_chain(
 
 
 @app.post("/v1/chat/completions", response_model=None)
-async def chat_completions(request: Request) -> JSONResponse | None:
+async def chat_completions(
+    request: Request,
+    ctx: AppContext = Depends(get_context),
+) -> JSONResponse | None:
     # -Once you start using the cache and have Riz's streaming function, refactor all this
     #  code in the handler and extract into a routing module/service,
     #  as per Hubert's suggestion in PR TEA-36 Core routing logic
@@ -201,7 +220,7 @@ async def chat_completions(request: Request) -> JSONResponse | None:
         if datetime.now(UTC) > deadline:
             return JSONResponse(status_code=504, content={"error": "request timed out"})
 
-        if await redis_client.exists(f"cooldown:{target['provider']}:{target['model']}"):
+        if await ctx.redis.exists(f"cooldown:{target['provider']}:{target['model']}"):
             continue
 
         (result, action) = await try_target(target, deadline)

@@ -25,6 +25,11 @@ Synchronize the environment and install dependencies with:
 uv sync
 ```
 
+Copy `.env.example` to `.env` and fill in any local-specific values. The defaults
+are fine for running against a local Redis (`docker run --rm -d -p 6379:6379 redis:7`).
+
+This project uses `uv` for dependency management.
+
 ## Running the Service
 
 Start the development server:
