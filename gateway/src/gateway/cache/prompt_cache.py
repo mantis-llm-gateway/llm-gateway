@@ -16,7 +16,7 @@ class SemanticCacheBackend(Protocol):
 
 
 class PromptCache:
-    # TODO: look into eviction policies
+    # TODO: Set maxmemory + eviction policy (e.g. allkeys-lfu) in Redis/ElastiCache config
     """Two-tier prompt cache: exact-match with optional semantic fallback.
 
     Callers pass `prompt`, `model`, `provider` to `get`/`set`; key derivation is internal.
