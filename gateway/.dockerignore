@@ -1,0 +1,30 @@
+# Version control
+.git
+.gitignore
+.github
+
+# Environment files (NEVER ship local secrets into the image)
+.env
+.env.local
+.env.*.local
+
+# Python artifacts
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.venv
+
+# IDE / editor
+.vscode
+.idea
+*.swp
+.DS_Store
+
+# Project-specific
+tests/
+docs/
+README.md
+.pre-commit-config.yaml
