@@ -2,93 +2,75 @@
   "aliases": {
     "Claude Sonnet 4-5": {
       "provider": "anthropic",
-      "model": "claude-sonnet-4-5-20250929",
-      "rate_limits": {}
+      "model": "claude-sonnet-4-5-20250929"
     },
     "Claude Opus 4-6": {
       "provider": "anthropic",
-      "model": "claude-opus-4-6",
-      "rate_limits": {}
+      "model": "claude-opus-4-6"
     },
     "Claude Opus 4-5": {
       "provider": "anthropic",
-      "model": "claude-opus-4-5-20251101",
-      "rate_limits": {}
+      "model": "claude-opus-4-5-20251101"
     },
     "Claude Opus 4-1": {
       "provider": "anthropic",
-      "model": "claude-opus-4-1-20250805",
-      "rate_limits": {}
+      "model": "claude-opus-4-1-20250805"
     },
     "Claude Opus 4-7": {
       "provider": "anthropic",
-      "model": "claude-opus-4-7",
-      "rate_limits": {}
+      "model": "claude-opus-4-7"
     },
     "Claude Opus 4-7 Bedrock": {
       "provider": "bedrock",
-      "model": "claude-opus-4-7",
-      "rate_limits": {}
+      "model": "claude-opus-4-7"
     },
     "Claude Opus 4-7 Azure": {
       "provider": "azure",
-      "model": "claude-opus-4-7",
-      "rate_limits": {}
+      "model": "claude-opus-4-7"
     },
     "Claude Sonnet 4-6": {
       "provider": "anthropic",
-      "model": "claude-sonnet-4-6",
-      "rate_limits": {}
+      "model": "claude-sonnet-4-6"
     },
     "Claude Haiku 4-5": {
       "provider": "anthropic",
-      "model": "claude-haiku-4-5-20251001",
-      "rate_limits": {}
+      "model": "claude-haiku-4-5-20251001"
     },
     "GPT-5.5": {
       "provider": "openai",
-      "model":  "gpt-5.5-2026-04-23",
-      "rate_limits": {}
+      "model":  "gpt-5.5-2026-04-23"
     },
     "GPT-5.5 pro": {
       "provider": "openai",
-      "model": "gpt-5.5-pro-2026-04-23",
-      "rate_limits": {}
+      "model": "gpt-5.5-pro-2026-04-23"
     },
     "GPT-5.4": {
       "provider": "openai",
-      "model": "gpt-5.4-2026-03-05",
-      "rate_limits": {}
+      "model": "gpt-5.4-2026-03-05"
     },
     "GPT-5.4 mini": {
       "provider": "openai",
-      "model": "gpt-5.4-mini-2026-03-17",
-      "rate_limits": {}
+      "model": "gpt-5.4-mini-2026-03-17"
     },
     "GPT-5 nano": {
       "provider": "openai",
-      "model": "gpt-5.4-nano-2026-03-17",
-      "rate_limits": {}
+      "model": "gpt-5.4-nano-2026-03-17"
     },
     "GPT-5 nano - Azure": {
-      "provider": "Azure",
-      "model": "gpt-5.4-nano-2026-03-17",
-      "rate_limits": {}
+      "provider": "azure",
+      "model": "gpt-5.4-nano-2026-03-17"
     },
     "Gemini 2.5 Flash": {
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
-      "rate_limits": {}
+      "model": "gemini-2.5-flash"
     },
     "Gemini 2.5 Pro": {
       "provider": "gemini",
-      "model": "gemini-2.5-pro",
-      "rate_limits": {}
+      "model": "gemini-2.5-pro"
     },
     "Gemini 3.1 Flash Lite": {
       "provider": "gemini",
-      "model": "gemini-3.1-flash-lite",
-      "rate_limits": {}
+      "model": "gemini-3.1-flash-lite"
     }
   },
   "default_model": "Claude Haiku 4-5",
@@ -98,7 +80,7 @@
       "name": "Code generation",
       "match": {"name": "task-type", "value": "code_generation"},
       "targets": [
-        {"alias": "Claude Opus 4.7", "weight": 6}, {"alias": "Claude Opus 4.6", "weight": 4}
+        {"alias": "Claude Opus 4-7", "weight": 6}, {"alias": "Claude Opus 4-6", "weight": 4}
       ]
     },
     {
@@ -106,7 +88,7 @@
       "name": "Summarization",
       "match": {"name": "task-type", "value": "summarization"},
       "targets": [
-        {"alias": "Gemini 2.5 Pro", "weight": 6}, {"alias": "Claude Opus 4.5", "weight": 5}
+        {"alias": "Gemini 2.5 Pro", "weight": 6}, {"alias": "Claude Opus 4-5", "weight": 5}
       ]
     },
     {
@@ -114,7 +96,7 @@
       "name": "Free tier",
       "match": {"name": "user-tier", "value": "free"},
       "targets": [
-        {"alias": "GPT 5 nano", "weight": 2}, {"alias": "GPT 5 nano Azure", "weight": 4}
+        {"alias": "GPT-5 nano", "weight": 2}, {"alias": "GPT-5 nano - Azure", "weight": 4}
       ]
     },
     {
@@ -122,16 +104,14 @@
       "name": "Paid tier",
       "match": {"name": "user-tier", "value": "paid"},
       "targets": [
-        {"alias": "Claude Opus 4.7", "weight": 4},
-        {"alias": "Claude Opus 4.7 Bedrock", "weight": 3},
-        {"alias": "Claude Opus 4.7 Azure", "weight": 3}
+        {"alias": "Claude Opus 4-7", "weight": 4},
+        {"alias": "Claude Opus 4-7 Bedrock", "weight": 3},
+        {"alias": "Claude Opus 4-7 Azure", "weight": 3}
       ]
     }
-
   ],
   "target_retries": 2,
   "fallbacks": ["GPT-5.5"],
-  "initial_response_timeout": 25
+  "initial_response_timeout": 30,
+  "cooldown_ttl": 60
 }
-
-
