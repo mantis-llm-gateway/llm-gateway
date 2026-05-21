@@ -47,3 +47,6 @@ select = ["E", "F", "I", "UP", "B", "W"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gateway"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Header", "fastapi.Body", "fastapi.Cookie", "fastapi.Form", "fastapi.File", "fastapi.Security"]
