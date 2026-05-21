@@ -32,7 +32,6 @@ pyrightconfig.json
 
 # Environment variables
 .env
-.env.*
 
 # Terraform
 *.tfstate
