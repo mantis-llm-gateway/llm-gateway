@@ -9,8 +9,6 @@ from redis.exceptions import ResponseError
 from gateway.cache.embedders import Embedder
 
 
-# TODO: add tests before calling this in PromptCache constructor
-# and working on the exact-match + semantic cache ordering
 class RedisSemanticCacheBackend:
     """Semantic cache backed by Redis (RediSearch via redis-stack; ElastiCache + Valkey in prod).
 

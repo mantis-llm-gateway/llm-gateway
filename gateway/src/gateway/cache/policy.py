@@ -1,7 +1,9 @@
+# TODO: Move policy values to config module (when that is ready for use)
+
 # TODO: Use a more precisely chosen value.
 # Lower temp warrants a higher cache hit rate because user wants more deterministic results
 CACHE_TEMP_THRESHOLD = 0.3
-# TODO: (future) this should be configurable. Set to 3 now to reduce false positives on long convos
+# TODO: Set to 3 now to reduce false positives on long convos
 CACHE_CONVERSATION_HISTORY_THRESHOLD = 3
 
 
