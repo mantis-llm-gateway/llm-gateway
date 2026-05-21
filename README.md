@@ -64,3 +64,6 @@ Additional documentation can be found in:
 
 - `gateway/README.md`
 - `docs/`
+
+# Amazon Bedrock `model_id`
+To find the Amazon Bedrock model_id value, click on the model you want to use here: https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html
