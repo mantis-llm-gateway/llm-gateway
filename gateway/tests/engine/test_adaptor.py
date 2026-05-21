@@ -1,71 +1,70 @@
-from collections.abc import AsyncGenerator, Sequence
-from types import SimpleNamespace
-from typing import TypeGuard
-from unittest.mock import AsyncMock, MagicMock, patch
+from collections.abc import AsyncIterator
+from typing import TypedDict
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from openai.types.chat import ChatCompletion, ChatCompletionMessage
-from openai.types.chat.chat_completion import Choice
+from botocore.exceptions import ClientError
 
-from gateway.engine.adaptor import (
-    ConnectionErrorChunk,
-    ProviderAdaptor,
-    StreamErrorChunk,
-    TokenChunk,
-)
+from gateway.engine import EndOfStream, Message, ProviderAdaptor
+
+MODEL_ID = "google.gemma-3-4b-it"
+MESSAGES: list[Message] = [{"role": "user", "content": [{"text": "Hello"}]}]
+# list[dict[str, Sequence[Collection[str]]]]
 
 
-def is_token_chunk(
-    chunk: TokenChunk | StreamErrorChunk | ConnectionErrorChunk,
-) -> TypeGuard[TokenChunk]:
-    return "token" in chunk
+class _TextBlock(TypedDict):
+    text: str
 
 
-def is_stream_error_chunk(
-    chunk: TokenChunk | StreamErrorChunk | ConnectionErrorChunk,
-) -> TypeGuard[StreamErrorChunk]:
-    return "error" in chunk
+class _NonStreamMessage(TypedDict):
+    content: list[_TextBlock]
 
 
-def is_any_llm_error_chunk(
-    chunk: TokenChunk | StreamErrorChunk | ConnectionErrorChunk,
-) -> TypeGuard[ConnectionErrorChunk]:
-    return "any_llm_error" in chunk
+class _NonStreamOutput(TypedDict):
+    message: _NonStreamMessage
 
 
-def make_request(stream: bool = False) -> MagicMock:
-    request = MagicMock()
-    request.model = "gpt-4o-mini"
-    request.prompt = "Hello"
-    request.provider = "openai"
-    request.stream = stream
-    return request
+class NonStreamResponse(TypedDict):
+    output: _NonStreamOutput
 
 
-def make_chunk(text: str | None) -> SimpleNamespace:
-    return SimpleNamespace(
-        id="mock_id", choices=[SimpleNamespace(delta=SimpleNamespace(content=text))]
-    )
+class _ContentBlockDelta(TypedDict):
+    delta: _TextBlock
 
 
-def make_mock_stream(chunks: Sequence[str | None], error: bool = False) -> MagicMock:
+class _ContentBlockDeltaEvent(TypedDict):
+    contentBlockDelta: _ContentBlockDelta
 
-    async def fake_stream(
-        mock_chunks: list[SimpleNamespace],
-    ) -> AsyncGenerator[SimpleNamespace, None]:
-        for chunk in mock_chunks:
-            yield chunk
 
-    mock_chunks: list[SimpleNamespace] = []
-    for text in chunks:
-        chunk = make_chunk(text)
-        chunk.choices[0].delta.content = text
-        mock_chunks.append(chunk)
+class StreamResponse(TypedDict):
+    stream: AsyncIterator[_ContentBlockDeltaEvent]
 
-    mock_stream = MagicMock()
 
-    mock_stream.__aiter__ = MagicMock(return_value=fake_stream(mock_chunks))
-    return mock_stream
+async def _async_events(*events: _ContentBlockDeltaEvent) -> AsyncIterator[_ContentBlockDeltaEvent]:
+    for event in events:
+        yield event
+
+
+def make_non_stream_bedrock_response(text: str) -> NonStreamResponse:
+    return {"output": {"message": {"content": [{"text": text}]}}}
+
+
+def make_stream_bedrock_response(text: str) -> StreamResponse:
+    event: _ContentBlockDeltaEvent = {"contentBlockDelta": {"delta": {"text": text}}}
+    return {"stream": _async_events(event)}
+
+
+def make_client_error() -> ClientError:
+    return ClientError({"Error": {"Code": "InternalError", "Message": "mock failure"}}, "Converse")
+
+
+def make_mock_bedrock_client(provider_adaptor: ProviderAdaptor) -> AsyncMock:
+    client = AsyncMock()
+    context_manager = AsyncMock()
+    context_manager.__aenter__ = AsyncMock(return_value=client)
+    context_manager.__aexit__ = AsyncMock(return_value=False)
+    provider_adaptor.session.client = MagicMock(return_value=context_manager)
+    return client
 
 
 @pytest.fixture
@@ -74,72 +73,38 @@ def provider_adaptor() -> ProviderAdaptor:
 
 
 @pytest.mark.asyncio
-async def test_static_response_success(provider_adaptor: ProviderAdaptor):
-    mock_response = ChatCompletion(
-        id="mock_id",
-        model="gpt-4o-mini",
-        object="chat.completion",
-        created=0,
-        choices=[
-            Choice(
-                index=0,
-                message=ChatCompletionMessage(role="assistant", content="Hello"),
-                finish_reason="stop",
-            )
-        ],
-    )
-    mock_conn = MagicMock()
-    mock_conn.acompletion = AsyncMock(return_value=mock_response)
-    with patch.object(provider_adaptor, "_get_client", return_value=mock_conn):
-        provider_adaptor.provider_connections["openai"] = mock_conn
-        results = [r async for r in provider_adaptor.send_request(make_request())]
-        assert results == [{"token": "Hello"}]
+async def test_non_stream_response_success(provider_adaptor: ProviderAdaptor):
+    client = make_mock_bedrock_client(provider_adaptor)
+    client.converse = AsyncMock(return_value=make_non_stream_bedrock_response("mock response"))
+    results = [r async for r in provider_adaptor.send_request(MODEL_ID, MESSAGES)]
+    assert results == [{"token": "mock response"}]
+
+
+@pytest.mark.asyncio
+async def test_non_stream_client_error_propagates(provider_adaptor: ProviderAdaptor):
+    client = make_mock_bedrock_client(provider_adaptor)
+    client.converse = AsyncMock(side_effect=make_client_error())
+    with pytest.raises(ClientError):
+        async for _ in provider_adaptor.send_request(MODEL_ID, MESSAGES):
+            pass
 
 
 @pytest.mark.asyncio
 async def test_stream_response_success(provider_adaptor: ProviderAdaptor):
-    chunks = ["Hel", "lo", " ", "wo", "rld"]
-    mock_stream = make_mock_stream(chunks)
-    mock_conn = MagicMock()
-    mock_conn.acompletion = AsyncMock(return_value=mock_stream)
-    with patch.object(provider_adaptor, "_get_client", return_value=mock_conn):
-        provider_adaptor.provider_connections["openai"] = mock_conn
-        complete_streamed_string = ""
-        async for chunk in provider_adaptor.send_request(make_request(stream=True)):
-            if chunk == {"token": "END"}:
-                break
-            if is_token_chunk(chunk):
-                complete_streamed_string += chunk["token"]
-        assert complete_streamed_string == "Hello world"
+    client = make_mock_bedrock_client(provider_adaptor)
+    client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
+    results = [
+        r
+        async for r in provider_adaptor.send_request(MODEL_ID, MESSAGES, stream=True)
+        if not isinstance(r, EndOfStream)
+    ]
+    assert results == [{"token": "mock response"}]
 
 
 @pytest.mark.asyncio
-async def test_get_client_only_creates_connection_once(provider_adaptor: ProviderAdaptor):
-    with patch("gateway.engine.adaptor.AnyLLM.create") as mock_create:
-        provider_adaptor._get_client("openai")  # type: ignore
-        provider_adaptor._get_client("openai")  # type: ignore
-        assert mock_create.call_count == 1
-
-
-@pytest.mark.asyncio
-async def test_send_request_get_client_error(provider_adaptor: ProviderAdaptor):
-    with patch.object(provider_adaptor, "_get_client", side_effect=Exception("connection failed")):
-        chunk = await anext(provider_adaptor.send_request(make_request()))
-        if is_any_llm_error_chunk(chunk):
-            assert str(chunk["any_llm_error"]) == "connection failed"
-
-
-@pytest.mark.asyncio
-async def test_stream_none_content_falls_back_to_empty_string(provider_adaptor: ProviderAdaptor):
-    mock_stream = make_mock_stream([None])
-    mock_conn = MagicMock()
-    mock_conn.acompletion = AsyncMock(return_value=mock_stream)
-    with patch.object(provider_adaptor, "_get_client", return_value=mock_conn):
-        mock_conn = MagicMock()
-        mock_conn.acompletion = AsyncMock(return_value=mock_stream)
-        provider_adaptor.provider_connections["openai"] = mock_conn
-        results = [r async for r in provider_adaptor.send_request(make_request(stream=True))]
-        data_chunks = [r for r in results if r != {"token": "END"}]
-        chunk = data_chunks[0]
-        if is_token_chunk(chunk):
-            assert chunk["token"] == ""
+async def test_stream_client_error_propagates(provider_adaptor: ProviderAdaptor):
+    client = make_mock_bedrock_client(provider_adaptor)
+    client.converse_stream = AsyncMock(side_effect=make_client_error())
+    with pytest.raises(ClientError):
+        async for _ in provider_adaptor.send_request(MODEL_ID, MESSAGES, stream=True):
+            pass
