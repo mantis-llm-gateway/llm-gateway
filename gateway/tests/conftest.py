@@ -1,0 +1,103 @@
+import pytest
+from fastapi.testclient import TestClient
+
+from gateway.context import AppContext
+from gateway.main import app
+from gateway.models import (
+    AliasConfig,
+    Config,
+    RoutingRuleConfig,
+    RuleMatchConfig,
+    TargetConfig,
+)
+from gateway.settings import Settings
+
+
+class FakeAsyncRedis:
+    """Minimal async Redis stand-in for handler tests.
+
+    Implements only the methods the handler actually calls today:
+    .exists() and .set() (the latter once the executor lands).
+    Expand as needed.
+    """
+
+    def __init__(self) -> None:
+        self._cooldowns: set[str] = set()
+
+    async def exists(self, key: str) -> int:
+        return 1 if key in self._cooldowns else 0
+
+    async def set(self, key: str, value, ex: int | None = None) -> None:
+        self._cooldowns.add(key)
+
+    async def aclose(self) -> None:
+        pass
+
+
+class FakeAdaptor:
+    """Minimal ProviderAdaptor stand-in. Records calls for assertions."""
+
+    def __init__(self) -> None:
+        self.send_request_calls: list = []
+
+    async def send_request(self, request_information):
+        self.send_request_calls.append(request_information)
+        yield {"token": "fake"}
+        yield {"token": "END"}
+
+
+@pytest.fixture
+def fake_redis() -> FakeAsyncRedis:
+    return FakeAsyncRedis()
+
+
+@pytest.fixture
+def fake_adaptor() -> FakeAdaptor:
+    return FakeAdaptor()
+
+
+@pytest.fixture
+def test_settings() -> Settings:
+    return Settings(cache_endpoint="fake", cache_port=6379)
+
+
+@pytest.fixture
+def test_config() -> Config:
+    return Config(
+        aliases={
+            "model-a": AliasConfig(provider="anthropic", model="claude-3"),
+            "fallback": AliasConfig(provider="openai", model="gpt-4"),
+        },
+        routing_rules=[
+            RoutingRuleConfig(
+                id="1",
+                name="code",
+                match=RuleMatchConfig(name="task-type", value="code_generation"),
+                targets=[TargetConfig(alias="model-a", weight=1)],
+            ),
+        ],
+        target_retries=2,
+        initial_response_timeout=30,
+        default_model="model-a",
+        fallbacks=["fallback"],
+        cooldown_ttl=60,
+    )
+
+
+@pytest.fixture
+def test_context(test_settings, test_config, fake_redis, fake_adaptor) -> AppContext:
+    return AppContext(
+        settings=test_settings,
+        config=test_config,
+        redis=fake_redis,
+        adaptor=fake_adaptor,
+    )
+
+
+@pytest.fixture
+def client(test_context):
+    # Override the lifespan-built context with our fake one.
+    # TestClient triggers the lifespan, then we overwrite app.state.context.
+    with TestClient(app) as c:
+        app.state.context = test_context
+        yield c

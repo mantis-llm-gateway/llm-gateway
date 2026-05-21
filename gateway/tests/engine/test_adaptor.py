@@ -4,11 +4,15 @@ from typing import TypeGuard
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from any_llm import AnyLLM
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 
-from gateway.engine import ConnectionErrorChunk, ProviderAdaptor, StreamErrorChunk, TokenChunk
+from gateway.engine.adaptor import (
+    ConnectionErrorChunk,
+    ProviderAdaptor,
+    StreamErrorChunk,
+    TokenChunk,
+)
 
 
 def is_token_chunk(
@@ -84,7 +88,7 @@ async def test_static_response_success(provider_adaptor: ProviderAdaptor):
             )
         ],
     )
-    mock_conn: AnyLLM = MagicMock()
+    mock_conn = MagicMock()
     mock_conn.acompletion = AsyncMock(return_value=mock_response)
     with patch.object(provider_adaptor, "_get_client", return_value=mock_conn):
         provider_adaptor.provider_connections["openai"] = mock_conn
@@ -96,7 +100,7 @@ async def test_static_response_success(provider_adaptor: ProviderAdaptor):
 async def test_stream_response_success(provider_adaptor: ProviderAdaptor):
     chunks = ["Hel", "lo", " ", "wo", "rld"]
     mock_stream = make_mock_stream(chunks)
-    mock_conn: AnyLLM = MagicMock()
+    mock_conn = MagicMock()
     mock_conn.acompletion = AsyncMock(return_value=mock_stream)
     with patch.object(provider_adaptor, "_get_client", return_value=mock_conn):
         provider_adaptor.provider_connections["openai"] = mock_conn
@@ -111,7 +115,7 @@ async def test_stream_response_success(provider_adaptor: ProviderAdaptor):
 
 @pytest.mark.asyncio
 async def test_get_client_only_creates_connection_once(provider_adaptor: ProviderAdaptor):
-    with patch("gateway.engine.AnyLLM.create") as mock_create:
+    with patch("gateway.engine.adaptor.AnyLLM.create") as mock_create:
         provider_adaptor._get_client("openai")  # type: ignore
         provider_adaptor._get_client("openai")  # type: ignore
         assert mock_create.call_count == 1

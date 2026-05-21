@@ -31,7 +31,7 @@ class StreamErrorChunk(TypedDict):
 
 
 class ProviderAdaptor:
-    def __init__(self):
+    def __init__(self) -> None:
         self.provider_connections: dict[str, AnyLLM] = {}
 
     def _get_client(self, provider: str) -> AnyLLM:
