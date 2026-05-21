@@ -9,7 +9,30 @@ gateway/
 ├── src/
 │   └── gateway/
 │       ├── __init__.py
-│       └── main.py
+│       ├── main.py                  # FastAPI app, lifespan, handler (one-liner → orchestrate)
+│       ├── settings.py              # infra config (env-derived: Redis endpoint, AWS region, ...)
+│       ├── context.py               # AppContext + build_context + shutdown_context
+│       ├── models.py                # Pydantic config shapes (Config, AliasConfig, ...)
+│       ├── validation.py            # startup validators (no duplicates, weights, ranges, ...)
+│       ├── config.json              # routing config (aliases, rules, fallbacks, retries, ...)
+│       ├── orchestrator.py          # per-request loop: deadline + cooldown + executor + verdict → HTTP
+│       ├── cache/                   # cache module
+│       │   ├── prompt_cache.py
+│       │   ├── policy.py
+│       │   ├── embedders.py
+│       │   ├── redis_exact_cache_backend.py
+│       │   └── redis_semantic_cache_backend.py
+│       ├── routing/                 # pure functions; no I/O
+│       │   ├── rules.py             # is_matching_rule
+│       │   ├── selection.py         # weighted entry-target pick
+│       │   ├── chain.py             # build attempt chain
+│       │   ├── aliases.py           # ResolvedTarget + resolve_aliases
+│       │   └── resolver.py          # high-level resolve_attempt_chain (the public API)
+│       └── engine/                  # one attempt; returns a typed verdict
+│           ├── adaptor.py           # ProviderAdaptor (provider→gateway streaming, unchanged)
+│           ├── verdict.py           # Success | Abort | Failover tagged union
+│           └── executor.py          # execute_attempt — currently a stub returning Failover(501)
+│
 ├── tests/
 ├── pyproject.toml
 └── uv.lock
