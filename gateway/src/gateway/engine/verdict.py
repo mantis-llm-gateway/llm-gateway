@@ -1,9 +1,15 @@
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class Success:
-    """The attempt completed successfully; response has been streamed to the client."""
+class CompleteSuccess:
+    response: str
+
+
+@dataclass(frozen=True)
+class StreamingSuccess:
+    chunks: AsyncIterator[str]
 
 
 @dataclass(frozen=True)
@@ -22,4 +28,4 @@ class Failover:
     message: str = "service unavailable"
 
 
-Verdict = Success | Abort | Failover
+Verdict = CompleteSuccess | StreamingSuccess | Abort | Failover

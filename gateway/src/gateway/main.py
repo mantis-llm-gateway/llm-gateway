@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from gateway.context import AppContext, build_context, shutdown_context
 from gateway.models import Config
@@ -41,6 +41,10 @@ def get_context(request: Request) -> AppContext:
 async def chat_completions(
     request: Request,
     ctx: AppContext = Depends(get_context),
-) -> JSONResponse | None:
+) -> JSONResponse | StreamingResponse | None:
     metadata: dict[str, str] = json.loads(request.headers.get("metadata") or "{}")
-    return await orchestrate(metadata, ctx)
+    # Assumes well formed request body - TODO: wrape in Pydantic model to validate
+    body = await request.json()
+    prompt = body["messages"][-1]["content"]
+    stream = body.get("stream", False)
+    return await orchestrate(metadata, prompt, stream, ctx)

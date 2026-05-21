@@ -1,42 +1,116 @@
 import pytest
+from botocore.exceptions import ClientError
 
 from gateway.engine.executor import execute_attempt
-from gateway.engine.verdict import Failover
+from gateway.engine.verdict import Abort, CompleteSuccess, Failover
 from gateway.routing import ResolvedTarget
 
 
-class TestExecuteAttemptStub:
-    """Behavior of the executor before provider wiring lands.
+def make_bedrock_error(code: str, http: int) -> ClientError:
+    return ClientError(
+        error_response={
+            "Error": {"Code": code, "Message": code},
+            "ResponseMetadata": {"HTTPStatusCode": http},
+        },
+        operation_name="InvokeModel",
+    )
 
-    Once `execute_attempt` is implemented against `adaptor.send_request`, these
-    tests should be replaced with contract tests:
-      - successful stream → Success
-      - 4xx non-429 → Abort
-      - 429 → Failover + cooldown key written
-      - 5xx → retry until exhausted, then Failover
-    """
 
-    @pytest.mark.asyncio
-    async def test_stub_returns_failover_501(self, fake_adaptor, fake_redis):
-        target = ResolvedTarget(provider="anthropic", model="claude-3")
+@pytest.fixture
+def target() -> ResolvedTarget:
+    return ResolvedTarget(provider="bedrock", model="claude-opus-4-7")
+
+
+@pytest.mark.asyncio
+class TestExecuteAttempt:
+    async def test_non_stream_success_returns_complete_success(
+        self, fake_adaptor, fake_redis, target
+    ):
+        fake_adaptor.response = "hello"
         verdict = await execute_attempt(
             target,
+            prompt="hi",
+            stream=False,
+            adaptor=fake_adaptor,
+            redis=fake_redis,
+            target_retries=0,
+            cooldown_ttl=60,
+        )
+        assert isinstance(verdict, CompleteSuccess)
+        assert verdict.response == "hello"
+
+    async def test_passes_model_id_messages_and_stream_to_adaptor(
+        self, fake_adaptor, fake_redis, target
+    ):
+        await execute_attempt(
+            target,
+            prompt="say hi",
+            stream=False,
+            adaptor=fake_adaptor,
+            redis=fake_redis,
+            target_retries=0,
+            cooldown_ttl=60,
+        )
+        model_id, messages, stream = fake_adaptor.send_request_calls[0]
+        assert model_id == "bedrock.claude-opus-4-7"
+        assert messages == [{"role": "user", "content": "say hi"}]
+        assert stream is False
+
+    async def test_throttling_sets_cooldown_and_failovers(self, fake_adaptor, fake_redis, target):
+        fake_adaptor.error = make_bedrock_error("ThrottlingException", 429)
+        verdict = await execute_attempt(
+            target,
+            prompt="hi",
+            stream=False,
+            adaptor=fake_adaptor,
+            redis=fake_redis,
+            target_retries=0,
+            cooldown_ttl=60,
+        )
+        assert isinstance(verdict, Failover)
+        assert "cooldown:bedrock:claude-opus-4-7" in fake_redis._cooldowns
+
+    async def test_service_unavailable_failovers_without_cooldown(
+        self, fake_adaptor, fake_redis, target
+    ):
+        fake_adaptor.error = make_bedrock_error("ServiceUnavailable", 503)
+        verdict = await execute_attempt(
+            target,
+            prompt="hi",
+            stream=False,
+            adaptor=fake_adaptor,
+            redis=fake_redis,
+            target_retries=0,
+            cooldown_ttl=60,
+        )
+        assert isinstance(verdict, Failover)
+        assert not fake_redis._cooldowns
+
+    async def test_4xx_returns_abort(self, fake_adaptor, fake_redis, target):
+        fake_adaptor.error = make_bedrock_error("ValidationException", 400)
+        verdict = await execute_attempt(
+            target,
+            prompt="hi",
+            stream=False,
+            adaptor=fake_adaptor,
+            redis=fake_redis,
+            target_retries=0,
+            cooldown_ttl=60,
+        )
+        assert isinstance(verdict, Abort)
+        assert verdict.status_code == 400
+
+    async def test_5xx_retries_then_failovers(self, fake_adaptor, fake_redis, target):
+        fake_adaptor.error = make_bedrock_error("InternalServerError", 500)
+        verdict = await execute_attempt(
+            target,
+            prompt="hi",
+            stream=False,
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=2,
             cooldown_ttl=60,
         )
         assert isinstance(verdict, Failover)
-        assert verdict.status_code == 501
-
-    @pytest.mark.asyncio
-    async def test_stub_does_not_set_cooldown(self, fake_adaptor, fake_redis):
-        target = ResolvedTarget(provider="anthropic", model="claude-3")
-        await execute_attempt(
-            target,
-            adaptor=fake_adaptor,
-            redis=fake_redis,
-            target_retries=0,
-            cooldown_ttl=60,
-        )
-        assert not fake_redis._cooldowns
+        assert verdict.status_code == 500
+        assert len(fake_adaptor.send_request_calls) == 3  # 1 + 2 retries

@@ -37,15 +37,18 @@ class FakeAsyncRedis:
 
 
 class FakeAdaptor:
-    """Minimal ProviderAdaptor stand-in. Records calls for assertions."""
+    """ProviderAdaptor stand-in. Configurable response/error for tests."""
 
     def __init__(self) -> None:
-        self.send_request_calls: list = []
+        self.send_request_calls: list[tuple[str, list, bool]] = []
+        self.response: object = "fake response"  # str for non-stream, AsyncIterator for stream
+        self.error: Exception | None = None
 
-    async def send_request(self, request_information):
-        self.send_request_calls.append(request_information)
-        yield {"token": "fake"}
-        yield {"token": "END"}
+    async def send_request(self, model_id: str, messages: list, stream: bool):
+        self.send_request_calls.append((model_id, messages, stream))
+        if self.error is not None:
+            raise self.error
+        return self.response
 
 
 @pytest.fixture

@@ -1,13 +1,15 @@
 from datetime import UTC, datetime, timedelta
 
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from gateway.context import AppContext
-from gateway.engine import Abort, Failover, Success, execute_attempt
+from gateway.engine import Abort, CompleteSuccess, Failover, StreamingSuccess, execute_attempt
 from gateway.routing import resolve_attempt_chain
 
 
-async def orchestrate(metadata: dict[str, str], ctx: AppContext) -> JSONResponse | None:
+async def orchestrate(
+    metadata: dict[str, str], prompt: str, stream: bool, ctx: AppContext
+) -> JSONResponse | StreamingResponse | None:
     """Run a chat-completion request through the gateway.
 
     Resolves the attempt chain, then for each target:
@@ -37,6 +39,8 @@ async def orchestrate(metadata: dict[str, str], ctx: AppContext) -> JSONResponse
 
         verdict = await execute_attempt(
             target,
+            prompt=prompt,
+            stream=stream,
             adaptor=ctx.adaptor,
             redis=ctx.redis,
             target_retries=ctx.config.target_retries,
@@ -44,8 +48,10 @@ async def orchestrate(metadata: dict[str, str], ctx: AppContext) -> JSONResponse
         )
 
         match verdict:
-            case Success():
-                return None
+            case CompleteSuccess(response=text):
+                return JSONResponse(content={"response": text})
+            case StreamingSuccess(chunks=g):
+                return StreamingResponse(g, media_type="text/event-stream")
             case Abort(status_code=code, message=msg):
                 return JSONResponse(status_code=code, content={"error": msg})
             case Failover(status_code=code):
