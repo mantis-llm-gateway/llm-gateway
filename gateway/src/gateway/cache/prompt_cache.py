@@ -10,45 +10,62 @@ class ExactCacheBackend(Protocol):
 
 class SemanticCacheBackend(Protocol):
     def lookup(self, prompt: str, model: str, provider: str) -> str | None: ...
-    def store(self, prompt: str, response: str, model: str, provider: str) -> None: ...
+    def store(
+        self, prompt: str, response: str, model: str, provider: str, ttl_seconds: int
+    ) -> None: ...
 
 
 class PromptCache:
-    # TODO: look into eviction policies
-    """Exact-match prompt cache.
+    # TODO: Set maxmemory + eviction policy (e.g. allkeys-lfu) in Redis/ElastiCache config
+    """Two-tier prompt cache: exact-match with optional semantic fallback.
 
-    Callers pass `prompt`, `model`, `provider` (required) to `get`/`set`.
-    Key derivation is internal.
+    Callers pass `prompt`, `model`, `provider` to `get`/`set`; key derivation is internal.
+    `get` checks exact first, then semantic on miss. `set` writes to both.
+
+    Example:
+    exact = RedisExactCacheBackend(redis_client)
+    semantic = RedisSemanticCacheBackend(redis_client, embedder)  # optional
+    cache = PromptCache(exact_backend=exact, semantic_backend=semantic)
+
+    cache.set(prompt=..., response=..., model=..., provider=...)
+    hit = cache.get(prompt=..., model=..., provider=...)
     """
 
+    DEFAULT_TTL_SECONDS = 3600
     PREFIX = "prompt:exact:"
 
     def __init__(
         self,
         exact_backend: ExactCacheBackend,
         semantic_backend: SemanticCacheBackend | None = None,
-        default_ttl_seconds: int = 3600,
+        default_ttl_seconds: int = DEFAULT_TTL_SECONDS,
     ):
         self._exact = exact_backend
         self._semantic = semantic_backend
         self._default_ttl_seconds = default_ttl_seconds
 
-    # TODO: return additional related info (model, tokens, timestamp, cache hit/miss boolean etc)
+    # TODO: Consider returning additional related info
+    # (eg. model, tokens, timestamp, cache hit/miss boolean etc)
     def get(self, *, prompt: str, model: str, provider: str) -> str | None:
         """
         Return cached response, or None on miss.
         Backend failures will be raised (contract TBD with Redis adapter).
         """
+
         key = self._build_exact_key(prompt=prompt, model=model, provider=provider)
+        print("Trying to do an exact-match cache lookup (`.get`)...")
         hit = self._exact.get(key)
+        print(f"Result of the exact-match cache lookup: {hit!r}\n")
 
         if hit is None and self._semantic is not None:
-            # TODO: do a semantic cache search
-            pass
+            print("Trying to do a semantic cache lookup (`.get`)...")
+            hit = self._semantic.lookup(prompt=prompt, model=model, provider=provider)
+            print(f"Result of the semantic cache lookup: {hit!r}\n")
 
         return hit
 
-    # TODO: store response metadata (model, tokens, timestamp) when we add observability.
+    # TODO: Think about adding response metadata to cache
+    # (e.g. model, tokens, timestamp etc) for cache observability
     # Cached values are raw response strings for now.
     def set(
         self,
@@ -59,13 +76,20 @@ class PromptCache:
         provider: str,
         ttl_seconds: int | None = None,
     ) -> None:
+        """
+        Omit `ttl_seconds` to use the cache's configured default TTL
+        Pass an int to override per call.
+        """
         key = self._build_exact_key(prompt=prompt, model=model, provider=provider)
+
         ttl = ttl_seconds if ttl_seconds is not None else self._default_ttl_seconds
+
         self._exact.set(key, response, ttl)
 
         if self._semantic is not None:
-            # TODO: add to semantic cache
-            pass
+            self._semantic.store(
+                prompt=prompt, response=response, model=model, provider=provider, ttl_seconds=ttl
+            )
 
     @classmethod
     def _build_exact_key(cls, *, prompt: str, model: str, provider: str) -> str:
