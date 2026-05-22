@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 
 from botocore.exceptions import ClientError
@@ -7,6 +8,8 @@ from gateway.engine.adaptor import EndOfStream, Message, ProviderAdaptor, TokenC
 from gateway.engine.errors import ErrorAction, classify_bedrock_error
 from gateway.engine.verdict import Abort, CompleteSuccess, Failover, StreamingSuccess, Verdict
 from gateway.routing import ResolvedTarget
+
+logger = logging.getLogger(__name__)
 
 
 async def _token_strings(
@@ -68,6 +71,16 @@ async def execute_attempt(
             return Failover(status_code=502)
 
         except ClientError as e:
+            err_code = e.response["Error"]["Code"]
+            err_msg = e.response["Error"].get("Message", "")
+            logger.warning(
+                "bedrock call failed: provider=%s model=%s code=%s status=%s msg=%s",
+                target.provider,
+                target.model,
+                err_code,
+                e.response["ResponseMetadata"]["HTTPStatusCode"],
+                err_msg,
+            )
             action, status = classify_bedrock_error(e)
             match action:
                 case ErrorAction.RETRY:
@@ -75,14 +88,12 @@ async def execute_attempt(
                     continue
                 case ErrorAction.COOLDOWN:
                     await redis.set(
-                        f"cooldown:{target.provider}:{target.model}",
-                        1,
-                        ex=cooldown_ttl,
+                        f"cooldown:{target.provider}:{target.model}", 1, ex=cooldown_ttl
                     )
-                    return Failover(status_code=status)
+                    return Failover(status_code=status, message=err_msg or "service unavailable")
                 case ErrorAction.FAILOVER:
-                    return Failover(status_code=status)
+                    return Failover(status_code=status, message=err_msg or "service unavailable")
                 case ErrorAction.ABORT:
-                    return Abort(status_code=status)
+                    return Abort(status_code=status, message=err_msg or "bad request")
 
     return Failover(status_code=last_status or 500)
