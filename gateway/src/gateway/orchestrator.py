@@ -37,6 +37,15 @@ async def orchestrate(
         if await ctx.redis.exists(f"cooldown:{target.provider}:{target.model}"):
             continue
 
+        if not stream:
+            cached = await ctx.prompt_cache.get(
+                prompt=prompt,
+                model=target.model,
+                provider=target.provider,
+            )
+            if cached is not None:
+                return JSONResponse(content={"response": cached})
+
         verdict = await execute_attempt(
             target,
             prompt=prompt,
@@ -49,6 +58,13 @@ async def orchestrate(
 
         match verdict:
             case CompleteSuccess(response=text):
+                if not stream:
+                    await ctx.prompt_cache.set(
+                        prompt=prompt,
+                        response=text,
+                        model=target.model,
+                        provider=target.provider,
+                    )
                 return JSONResponse(content={"response": text})
             case StreamingSuccess(chunks=g):
                 return StreamingResponse(g, media_type="text/event-stream")

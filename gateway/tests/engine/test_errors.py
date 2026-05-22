@@ -7,7 +7,13 @@ def _err(code: str, http: int) -> ClientError:
     return ClientError(
         error_response={
             "Error": {"Code": code, "Message": code},
-            "ResponseMetadata": {"HTTPStatusCode": http},
+            "ResponseMetadata": {
+                "RequestId": "test-request-id",
+                "HostId": "test-host-id",
+                "HTTPStatusCode": http,
+                "HTTPHeaders": {},
+                "RetryAttempts": 0,
+            },
         },
         operation_name="InvokeModel",
     )
