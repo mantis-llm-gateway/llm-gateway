@@ -30,13 +30,21 @@ pyrightconfig.json
 # macOS
 .DS_Store
 
-# Environment variables
+# Env files (secrets injected via ECS at runtime)
 .env
+.env.*
+!.env.example
 
-# Terraform
-*.tfstate
-*.tfstate.*
-.terraform/
+# Tests
+tests/
 
-# Logs
-*.log
+# Docker
+Dockerfile
+.dockerignore
+
+# Git
+.git/
+.gitignore
+
+# Docs
+README.md

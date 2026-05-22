@@ -30,8 +30,8 @@ gateway/
 │       │   └── resolver.py          # high-level resolve_attempt_chain (the public API)
 │       └── engine/                  # one attempt; returns a typed verdict
 │           ├── adaptor.py           # ProviderAdaptor (provider→gateway streaming, unchanged)
-│           ├── verdict.py           # Success | Abort | Failover tagged union
-│           └── executor.py          # execute_attempt — currently a stub returning Failover(501)
+│           ├── verdict.py           # CompleteSuccess | StreamingSuccess | Abort | Failover tagged union
+│           └── executor.py          # Owns each attempt to a provider endpoint
 │
 ├── tests/
 ├── pyproject.toml

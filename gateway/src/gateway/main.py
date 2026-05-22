@@ -1,4 +1,5 @@
 import json
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -22,6 +23,10 @@ def _load_config() -> Config:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    logging.basicConfig(
+        level=settings.log_level.upper(),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
     config = _load_config()
     app.state.context = build_context(settings, config)
     try:
@@ -35,6 +40,11 @@ app = FastAPI(lifespan=lifespan)
 
 def get_context(request: Request) -> AppContext:
     return request.app.state.context
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
 
 
 @app.post("/v1/chat/completions", response_model=None)

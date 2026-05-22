@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     aws_region: str = Field(default="us-east-1")
     log_level: str = Field(default="INFO")
 
+    # Bedrock
+    bedrock_guardrail_id: str | None = Field(default=None)
+    bedrock_guardrail_version: str = Field(default="1")
+    bedrock_embedding_model: str = Field(default="amazon.titan-embed-text-v2:0")
+    bedrock_primary_chat_model: str | None = Field(default=None)
+
 
 @lru_cache
 def get_settings() -> Settings:
