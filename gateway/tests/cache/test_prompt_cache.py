@@ -1,7 +1,7 @@
 import pytest
-from in_memory_backends import InMemoryCacheBackend, InMemorySemanticBackend
 
 from gateway.cache.prompt_cache import PromptCache
+from tests.cache.in_memory_backends import InMemoryCacheBackend, InMemorySemanticBackend
 
 EXAMPLE_PROVIDER = "anthropic"
 EXAMPLE_MODEL = "opus-4-7"

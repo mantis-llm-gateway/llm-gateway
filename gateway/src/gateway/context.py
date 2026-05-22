@@ -2,6 +2,8 @@ from dataclasses import dataclass
 
 from redis.asyncio import Redis
 
+from gateway.cache.prompt_cache import PromptCache
+from gateway.cache.redis_exact_cache_backend import RedisExactCacheBackend
 from gateway.engine import ProviderAdaptor
 from gateway.models import Config
 from gateway.settings import Settings
@@ -20,12 +22,16 @@ class AppContext:
     config: Config
     redis: Redis
     adaptor: ProviderAdaptor
+    prompt_cache: PromptCache
 
 
 def build_context(settings: Settings, config: Config) -> AppContext:
     redis = _build_redis(settings)
+    prompt_cache = _build_prompt_cache(redis)
     adaptor = ProviderAdaptor()
-    return AppContext(settings=settings, config=config, redis=redis, adaptor=adaptor)
+    return AppContext(
+        settings=settings, config=config, redis=redis, adaptor=adaptor, prompt_cache=prompt_cache
+    )
 
 
 def _build_redis(settings: Settings) -> Redis:
@@ -41,6 +47,11 @@ def _build_redis(settings: Settings) -> Redis:
         port=settings.cache_port,
         decode_responses=True,
     )
+
+
+def _build_prompt_cache(redis: Redis) -> PromptCache:
+    exact = RedisExactCacheBackend(redis)
+    return PromptCache(exact_backend=exact, semantic_backend=None)
 
 
 async def shutdown_context(ctx: AppContext) -> None:
