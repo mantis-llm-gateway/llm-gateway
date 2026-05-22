@@ -99,6 +99,7 @@ class TestExecuteAttempt:
 
         assert isinstance(verdict, Failover)
         assert "cooldown:bedrock:claude-opus-4-7" in fake_redis._cooldowns
+        assert verdict.message == "ThrottlingException"
 
     async def test_service_unavailable_failovers_without_cooldown(
         self, fake_adaptor, fake_redis, target
@@ -117,6 +118,7 @@ class TestExecuteAttempt:
 
         assert isinstance(verdict, Failover)
         assert not fake_redis._cooldowns
+        assert verdict.message == "ServiceUnavailable"
 
     async def test_4xx_returns_abort(self, fake_adaptor, fake_redis, target):
         fake_adaptor.error = make_bedrock_error("ValidationException", 400)
@@ -133,6 +135,7 @@ class TestExecuteAttempt:
 
         assert isinstance(verdict, Abort)
         assert verdict.status_code == 400
+        assert verdict.message == "ValidationException"
 
     async def test_5xx_retries_then_failovers(self, fake_adaptor, fake_redis, target):
         fake_adaptor.error = make_bedrock_error("InternalServerError", 500)
@@ -150,3 +153,4 @@ class TestExecuteAttempt:
         assert isinstance(verdict, Failover)
         assert verdict.status_code == 500
         assert len(fake_adaptor.send_request_calls) == 3
+        assert verdict.message == "service unavailable"
