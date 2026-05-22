@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from gateway.cache.prompt_cache import PromptCache
 from gateway.context import AppContext
 from gateway.main import app
 from gateway.models import (
@@ -11,6 +12,7 @@ from gateway.models import (
     TargetConfig,
 )
 from gateway.settings import Settings
+from tests.cache.in_memory_backends import InMemoryCacheBackend
 
 
 class FakeAsyncRedis:
@@ -52,6 +54,12 @@ def fake_redis() -> FakeAsyncRedis:
 
 
 @pytest.fixture
+def fake_prompt_cache() -> PromptCache:
+    exact = InMemoryCacheBackend()
+    return PromptCache(exact_backend=exact)
+
+
+@pytest.fixture
 def fake_adaptor() -> FakeAdaptor:
     return FakeAdaptor()
 
@@ -85,12 +93,15 @@ def test_config() -> Config:
 
 
 @pytest.fixture
-def test_context(test_settings, test_config, fake_redis, fake_adaptor) -> AppContext:
+def test_context(
+    test_settings, test_config, fake_redis, fake_adaptor, fake_prompt_cache
+) -> AppContext:
     return AppContext(
         settings=test_settings,
         config=test_config,
         redis=fake_redis,
         adaptor=fake_adaptor,
+        prompt_cache=fake_prompt_cache,
     )
 
 
