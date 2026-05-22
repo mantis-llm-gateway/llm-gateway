@@ -28,7 +28,7 @@ class AppContext:
 def build_context(settings: Settings, config: Config) -> AppContext:
     redis = _build_redis(settings)
     prompt_cache = _build_prompt_cache(redis)
-    adaptor = ProviderAdaptor()
+    adaptor = ProviderAdaptor(region_name=settings.aws_region)
     return AppContext(
         settings=settings, config=config, redis=redis, adaptor=adaptor, prompt_cache=prompt_cache
     )

@@ -1,13 +1,38 @@
+from collections.abc import AsyncIterator
+
+from botocore.exceptions import ClientError
 from redis.asyncio import Redis
 
-from gateway.engine.adaptor import ProviderAdaptor
-from gateway.engine.verdict import Failover, Verdict
+from gateway.engine.adaptor import EndOfStream, Message, ProviderAdaptor, TokenChunk
+from gateway.engine.errors import ErrorAction, classify_bedrock_error
+from gateway.engine.verdict import Abort, CompleteSuccess, Failover, StreamingSuccess, Verdict
 from gateway.routing import ResolvedTarget
+
+
+async def _token_strings(
+    chunks: AsyncIterator[TokenChunk | EndOfStream], first_chunk: TokenChunk | EndOfStream
+) -> AsyncIterator[str]:
+    """Convert adaptor chunks into plain strings for StreamingResponse.
+
+    `execute_attempt` already consumed one item from the adaptor so it could catch
+    pre-stream provider errors. This helper yields that first item, then keeps
+    consuming the remaining stream.
+    """
+    if not isinstance(first_chunk, EndOfStream):
+        yield first_chunk["token"]
+
+    async for chunk in chunks:
+        if isinstance(chunk, EndOfStream):
+            break
+
+        yield chunk["token"]
 
 
 async def execute_attempt(
     target: ResolvedTarget,
     *,
+    prompt: str,
+    stream: bool,
     adaptor: ProviderAdaptor,
     redis: Redis,
     target_retries: int,
@@ -16,25 +41,48 @@ async def execute_attempt(
     """Run one target with up to `target_retries` retries.
 
     Returns a typed verdict that the orchestrator translates into HTTP behavior.
-
-    Contract (to be implemented when provider wiring lands):
-      - Successful stream completion → Success()
-      - 4xx non-429 before stream start → Abort(status_code=e.status_code)
-      - 429 → set cooldown key, return Failover(status_code=429)
-      - 5xx → retry up to max_attempts; if exhausted, Failover(status_code=last_5xx)
-
-    The loop body that increments `attempts` lives on the 5xx branch; every other
-    branch returns. This shape fixes the original CPU spin-wait bug.
     """
-    max_attempts = 1 + target_retries
+    model_id = target.model
+    messages: list[Message] = [{"role": "user", "content": [{"text": prompt}]}]
+
     last_status: int | None = None
-    attempts = 0
-    while attempts < max_attempts:
-        # TODO: build RequestInformation from target + prompt, call
-        # adaptor.send_request(...), iterate chunks, translate to Verdict per
-        # the contract above. The 429 branch writes:
-        #   key = f"cooldown:{target.provider}:{target.model}"
-        #   await redis.set(key, 1, ex=cooldown_ttl)
-        return Failover(status_code=501, message="executor not yet wired to provider")
+    for _ in range(1 + target_retries):
+        try:
+            chunks = adaptor.send_request(model_id, messages, stream)
+
+            if stream:
+                first_chunk = await anext(chunks)
+                return StreamingSuccess(chunks=_token_strings(chunks, first_chunk))
+
+            async for chunk in chunks:
+                if isinstance(chunk, EndOfStream):
+                    break
+
+                return CompleteSuccess(response=chunk["token"])
+
+            # In case we get no usable content from the provider
+            return Failover(status_code=502)
+
+        except StopAsyncIteration:
+            # If stream ends before yielding tokens or EndOfStream
+            return Failover(status_code=502)
+
+        except ClientError as e:
+            action, status = classify_bedrock_error(e)
+            match action:
+                case ErrorAction.RETRY:
+                    last_status = status
+                    continue
+                case ErrorAction.COOLDOWN:
+                    await redis.set(
+                        f"cooldown:{target.provider}:{target.model}",
+                        1,
+                        ex=cooldown_ttl,
+                    )
+                    return Failover(status_code=status)
+                case ErrorAction.FAILOVER:
+                    return Failover(status_code=status)
+                case ErrorAction.ABORT:
+                    return Abort(status_code=status)
 
     return Failover(status_code=last_status or 500)

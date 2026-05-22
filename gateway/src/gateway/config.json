@@ -1,117 +1,76 @@
 {
   "aliases": {
-    "Claude Sonnet 4-5": {
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-5-20250929"
-    },
-    "Claude Opus 4-6": {
-      "provider": "anthropic",
-      "model": "claude-opus-4-6"
-    },
-    "Claude Opus 4-5": {
-      "provider": "anthropic",
-      "model": "claude-opus-4-5-20251101"
-    },
-    "Claude Opus 4-1": {
-      "provider": "anthropic",
-      "model": "claude-opus-4-1-20250805"
-    },
-    "Claude Opus 4-7": {
-      "provider": "anthropic",
-      "model": "claude-opus-4-7"
-    },
-    "Claude Opus 4-7 Bedrock": {
+    "Claude Sonnet 4-5 Bedrock": {
       "provider": "bedrock",
-      "model": "claude-opus-4-7"
+      "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     },
-    "Claude Opus 4-7 Azure": {
-      "provider": "azure",
-      "model": "claude-opus-4-7"
+    "Claude Haiku 4-5 Bedrock": {
+      "provider": "bedrock",
+      "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0"
     },
-    "Claude Sonnet 4-6": {
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-6"
+    "Nova Premier Bedrock": {
+      "provider": "bedrock",
+      "model": "us.amazon.nova-premier-v1:0"
     },
-    "Claude Haiku 4-5": {
-      "provider": "anthropic",
-      "model": "claude-haiku-4-5-20251001"
+    "Nova Pro Bedrock": {
+      "provider": "bedrock",
+      "model": "us.amazon.nova-pro-v1:0"
     },
-    "GPT-5.5": {
-      "provider": "openai",
-      "model":  "gpt-5.5-2026-04-23"
+    "Nova Lite Bedrock": {
+      "provider": "bedrock",
+      "model": "us.amazon.nova-lite-v1:0"
     },
-    "GPT-5.5 pro": {
-      "provider": "openai",
-      "model": "gpt-5.5-pro-2026-04-23"
+    "Nova Micro Bedrock": {
+      "provider": "bedrock",
+      "model": "us.amazon.nova-micro-v1:0"
     },
-    "GPT-5.4": {
-      "provider": "openai",
-      "model": "gpt-5.4-2026-03-05"
-    },
-    "GPT-5.4 mini": {
-      "provider": "openai",
-      "model": "gpt-5.4-mini-2026-03-17"
-    },
-    "GPT-5 nano": {
-      "provider": "openai",
-      "model": "gpt-5.4-nano-2026-03-17"
-    },
-    "GPT-5 nano - Azure": {
-      "provider": "azure",
-      "model": "gpt-5.4-nano-2026-03-17"
-    },
-    "Gemini 2.5 Flash": {
-      "provider": "gemini",
-      "model": "gemini-2.5-flash"
-    },
-    "Gemini 2.5 Pro": {
-      "provider": "gemini",
-      "model": "gemini-2.5-pro"
-    },
-    "Gemini 3.1 Flash Lite": {
-      "provider": "gemini",
-      "model": "gemini-3.1-flash-lite"
+    "Claude Haiku 4-5 Bedrock Fallback": {
+      "provider": "bedrock",
+      "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0"
     }
   },
-  "default_model": "Claude Haiku 4-5",
+  "default_model": "Claude Haiku 4-5 Bedrock",
   "routing_rules": [
     {
       "id": "1",
       "name": "Code generation",
-      "match": {"name": "task-type", "value": "code_generation"},
+      "match": { "name": "task-type", "value": "code_generation" },
       "targets": [
-        {"alias": "Claude Opus 4-7", "weight": 6}, {"alias": "Claude Opus 4-6", "weight": 4}
+        { "alias": "Claude Sonnet 4-5 Bedrock", "weight": 6 },
+        { "alias": "Nova Pro Bedrock", "weight": 4 }
       ]
     },
     {
       "id": "2",
       "name": "Summarization",
-      "match": {"name": "task-type", "value": "summarization"},
+      "match": { "name": "task-type", "value": "summarization" },
       "targets": [
-        {"alias": "Gemini 2.5 Pro", "weight": 6}, {"alias": "Claude Opus 4-5", "weight": 5}
+        { "alias": "Nova Lite Bedrock", "weight": 6 },
+        { "alias": "Claude Haiku 4-5 Bedrock", "weight": 5 }
       ]
     },
     {
       "id": "3",
       "name": "Free tier",
-      "match": {"name": "user-tier", "value": "free"},
+      "match": { "name": "user-tier", "value": "free" },
       "targets": [
-        {"alias": "GPT-5 nano", "weight": 2}, {"alias": "GPT-5 nano - Azure", "weight": 4}
+        { "alias": "Nova Micro Bedrock", "weight": 4 },
+        { "alias": "Nova Lite Bedrock", "weight": 2 }
       ]
     },
     {
       "id": "4",
       "name": "Paid tier",
-      "match": {"name": "user-tier", "value": "paid"},
+      "match": { "name": "user-tier", "value": "paid" },
       "targets": [
-        {"alias": "Claude Opus 4-7", "weight": 4},
-        {"alias": "Claude Opus 4-7 Bedrock", "weight": 3},
-        {"alias": "Claude Opus 4-7 Azure", "weight": 3}
+        { "alias": "Claude Sonnet 4-5 Bedrock", "weight": 4 },
+        { "alias": "Nova Premier Bedrock", "weight": 3 },
+        { "alias": "Nova Pro Bedrock", "weight": 3 }
       ]
     }
   ],
   "target_retries": 2,
-  "fallbacks": ["GPT-5.5"],
+  "fallbacks": ["Claude Haiku 4-5 Bedrock Fallback"],
   "initial_response_timeout": 30,
   "cooldown_ttl": 60
 }

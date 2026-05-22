@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 
 from gateway.cache.prompt_cache import PromptCache
 from gateway.context import AppContext
+from gateway.engine import EndOfStream
 from gateway.main import app
 from gateway.models import (
     AliasConfig,
@@ -37,15 +38,23 @@ class FakeAsyncRedis:
 
 
 class FakeAdaptor:
-    """Minimal ProviderAdaptor stand-in. Records calls for assertions."""
+    """ProviderAdaptor stand-in. Configurable response/error for tests."""
 
     def __init__(self) -> None:
-        self.send_request_calls: list = []
+        self.send_request_calls: list[tuple[str, list, bool]] = []
+        self.response: list[dict] = [{"token": "fake response"}]
+        self.error: Exception | None = None
 
-    async def send_request(self, request_information):
-        self.send_request_calls.append(request_information)
-        yield {"token": "fake"}
-        yield {"token": "END"}
+    async def send_request(self, model_id: str, messages: list, stream: bool):
+        self.send_request_calls.append((model_id, messages, stream))
+        if self.error is not None:
+            raise self.error
+
+        for chunk in self.response:
+            yield chunk
+
+        if stream:
+            yield EndOfStream()
 
 
 @pytest.fixture

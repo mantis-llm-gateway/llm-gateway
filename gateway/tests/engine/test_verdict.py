@@ -1,9 +1,17 @@
-from gateway.engine.verdict import Abort, Failover, Success
+from gateway.engine.verdict import Abort, CompleteSuccess, Failover, StreamingSuccess
 
 
 class TestVerdict:
-    def test_success_constructs(self):
-        assert Success() == Success()
+    def test_complete_success_carries_response(self):
+        verdict = CompleteSuccess(response="hello world")
+        assert verdict.response == "hello world"
+
+    def test_streaming_success_constructs(self):
+        async def gen():
+            yield "chunk"
+
+        verdict = StreamingSuccess(chunks=gen())
+        assert verdict.chunks is not None
 
     def test_abort_carries_status_code_and_default_message(self):
         verdict = Abort(status_code=400)
