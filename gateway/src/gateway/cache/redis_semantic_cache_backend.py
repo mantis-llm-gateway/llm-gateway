@@ -3,7 +3,7 @@ import uuid
 from typing import Any
 
 import numpy as np
-import redis
+from redis.asyncio import Redis
 from redis.exceptions import ResponseError
 
 from gateway.cache.embedders import Embedder
@@ -32,7 +32,7 @@ class RedisSemanticCacheBackend:
 
     def __init__(
         self,
-        redis_client: redis.Redis,
+        redis_client: Redis,
         embedder: Embedder,
         similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
         top_k: int = DEFAULT_TOP_K,
@@ -42,13 +42,11 @@ class RedisSemanticCacheBackend:
         self._similarity_threshold = similarity_threshold
         self._top_k = top_k
 
-        self.ensure_index_exists()
-
-    def ensure_index_exists(self) -> None:
+    async def ensure_index_exists(self) -> None:
         """Create the FT index if it doesn't already exist.
         Safe to call repeatedly."""
         try:
-            self._redis.execute_command(
+            await self._redis.execute_command(
                 "FT.CREATE",
                 self.REDIS_INDEX_NAME,
                 "ON",
@@ -77,13 +75,14 @@ class RedisSemanticCacheBackend:
             if "Index already exists" not in str(e):
                 raise
 
-    def lookup(self, prompt: str, model: str, provider: str) -> str | None:
+    async def lookup(self, prompt: str, model: str, provider: str) -> str | None:
         """Return a cached response for a semantically similar prompt, or None.
 
         Embeds the prompt, filters stored entries on (provider, model), and runs
         a top-k cosine-similarity search. Returns the top match's payload if its
         similarity meets `self._similarity_threshold`; otherwise None.
         """
+        # TODO: check if this needs to be async
         embedding = self._embedder.embed(prompt)
 
         # Filter tags must match how values were stored, so sanitize on store and lookup
@@ -101,7 +100,7 @@ class RedisSemanticCacheBackend:
         # PARAMS binds the encoded vector to $vec in the query
         # DIALECT 2 enables the `=>[KNN ...]` syntax used above
         # Response is limited to 2 fields: "payload" and "distance" (lower = more similar)
-        result = self._redis.execute_command(
+        result = await self._redis.execute_command(
             "FT.SEARCH",
             self.REDIS_INDEX_NAME,
             query,
@@ -129,7 +128,7 @@ class RedisSemanticCacheBackend:
             print("Semantic cache lookup miss")
             return None
 
-    def store(
+    async def store(
         self, prompt: str, response: str, model: str, provider: str, ttl_seconds: int
     ) -> None:
         """Store a prompt/response pair under a fresh UUID key.
@@ -151,19 +150,22 @@ class RedisSemanticCacheBackend:
         print("We're trying to store (`.set`) in the semantic cache now...")
 
         # Stored as a Redis HASH so vector + response + tags stay co-located.
-        self._redis.hset(
+        await self._redis.execute_command(
+            "HSET",
             key,
-            mapping={
-                "vector": self._encode_vector(embedding),
-                "payload": response,
-                "model": sanitized_model,
-                "provider": sanitized_provider,
-            },
+            "vector",
+            self._encode_vector(embedding),
+            "payload",
+            response,
+            "model",
+            sanitized_model,
+            "provider",
+            sanitized_provider,
         )
 
         print(f"Attempting to store key {key[:25]}... with TTL of {ttl_seconds} seconds")
 
-        self._redis.expire(key, ttl_seconds)
+        await self._redis.expire(key, ttl_seconds)
 
         # TODO: add logging for production logs
         # (requires logging config setup at project entry point)
@@ -212,10 +214,6 @@ class RedisSemanticCacheBackend:
             for j in range(0, len(fields), 2):
                 key = fields[j]
                 value = fields[j + 1]
-                if isinstance(key, bytes):
-                    key = key.decode()
-                if isinstance(value, bytes):
-                    value = value.decode()
                 field_map[key] = value
 
             # 1.0 used as a safe fallback. Most dissimilar distance.
