@@ -25,10 +25,11 @@ class AppContext:
     prompt_cache: PromptCache
 
 
-def build_context(settings: Settings, config: Config) -> AppContext:
+async def build_context(settings: Settings, config: Config) -> AppContext:
     redis = _build_redis(settings)
     prompt_cache = _build_prompt_cache(redis)
     adaptor = ProviderAdaptor()
+    await adaptor.start()
     return AppContext(
         settings=settings, config=config, redis=redis, adaptor=adaptor, prompt_cache=prompt_cache
     )
@@ -57,3 +58,4 @@ def _build_prompt_cache(redis: Redis) -> PromptCache:
 async def shutdown_context(ctx: AppContext) -> None:
     """Close clients held by the context. Called from the FastAPI lifespan."""
     await ctx.redis.aclose()
+    await ctx.adaptor.shutdown()

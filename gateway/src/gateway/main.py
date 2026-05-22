@@ -23,7 +23,7 @@ def _load_config() -> Config:
 async def lifespan(app: FastAPI):
     settings = get_settings()
     config = _load_config()
-    app.state.context = build_context(settings, config)
+    app.state.context = await build_context(settings, config)
     try:
         yield
     finally:

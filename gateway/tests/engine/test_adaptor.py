@@ -1,6 +1,6 @@
 from collections.abc import AsyncIterator
 from typing import TypedDict
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 from botocore.exceptions import ClientError
@@ -60,10 +60,7 @@ def make_client_error() -> ClientError:
 
 def make_mock_bedrock_client(provider_adaptor: ProviderAdaptor) -> AsyncMock:
     client = AsyncMock()
-    context_manager = AsyncMock()
-    context_manager.__aenter__ = AsyncMock(return_value=client)
-    context_manager.__aexit__ = AsyncMock(return_value=False)
-    provider_adaptor.session.client = MagicMock(return_value=context_manager)
+    provider_adaptor._client = client  # type: ignore
     return client
 
 

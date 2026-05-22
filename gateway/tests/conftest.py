@@ -47,6 +47,9 @@ class FakeAdaptor:
         yield {"token": "fake"}
         yield {"token": "END"}
 
+    async def shutdown(self):
+        pass
+
 
 @pytest.fixture
 def fake_redis() -> FakeAsyncRedis:
