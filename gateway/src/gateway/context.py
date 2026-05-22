@@ -40,6 +40,7 @@ def _build_redis(settings: Settings) -> Redis:
             host=settings.cache_endpoint,
             port=settings.cache_port,
             password=settings.cache_auth_token,
+            ssl=True,
             decode_responses=True,
         )
     return Redis(
