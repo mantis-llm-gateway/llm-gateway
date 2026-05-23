@@ -72,5 +72,6 @@
   "target_retries": 2,
   "fallbacks": ["Claude Haiku 4-5 Bedrock Fallback"],
   "initial_response_timeout": 30,
-  "cooldown_ttl": 60
+  "cooldown_ttl": 60,
+  "semantic_cache_enabled": true
 }

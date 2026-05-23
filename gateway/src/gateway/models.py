@@ -31,3 +31,4 @@ class Config(BaseModel):
     initial_response_timeout: int
     default_model: str
     cooldown_ttl: int
+    semantic_cache_enabled: bool

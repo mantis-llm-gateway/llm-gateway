@@ -12,6 +12,7 @@ def validate_config(config: Config) -> None:
     validate_target_retries_val(config)
     validate_initial_response_timeout(config)
     validate_cooldown_ttl(config)
+    validate_semantic_cache_enabled(config)
 
 
 def _validate_non_empty_string(value, field_description: str) -> None:
@@ -106,3 +107,8 @@ def validate_weights_in_target_list(config: Config) -> None:
 
         if zeros_count == total_targets:
             raise ValueError("All the weights for targets must not be 0")
+
+
+def validate_semantic_cache_enabled(config: Config) -> None:
+    if not isinstance(config.semantic_cache_enabled, bool):
+        raise ValueError(f"{config.semantic_cache_enabled} must be a boolean.")

@@ -11,6 +11,7 @@ from gateway.validation import (
     validate_initial_response_timeout,
     validate_no_duplicates_in_config,
     validate_routing_rules_strings,
+    validate_semantic_cache_enabled,
     validate_target_retries_val,
     validate_uniqueness_of_routing_rule_ids,
     validate_weights_in_target_list,
@@ -254,3 +255,17 @@ class TestValidateCooldownTtl:
 
     def test_passes_for_greater_than_60(self):
         validate_cooldown_ttl(make_config(cooldown_ttl=120))
+
+
+class TestValidateSemanticCacheEnabled:
+    def test_passes_for_true(self):
+        validate_semantic_cache_enabled(make_config(semantic_cache_enabled=True))
+
+    def test_passes_for_false(self):
+        validate_semantic_cache_enabled(make_config(semantic_cache_enabled=False))
+
+    @pytest.mark.parametrize("invalid_value", ["true", 1, None])
+    def test_raises_for_non_bool(self, invalid_value):
+        config = make_config(semantic_cache_enabled=invalid_value)
+        with pytest.raises(ValueError, match="must be a boolean"):
+            validate_semantic_cache_enabled(config)
