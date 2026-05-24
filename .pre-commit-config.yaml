@@ -16,3 +16,8 @@ repos:
     rev: v1.18.2
     hooks:
       - id: mypy
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.105.0
+    hooks:
+      - id: terraform_fmt

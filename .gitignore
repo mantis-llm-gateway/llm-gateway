@@ -37,6 +37,7 @@ pyrightconfig.json
 *.tfstate
 *.tfstate.*
 .terraform/
+terraform.tfvars
 
 # Logs
 *.log
