@@ -33,6 +33,7 @@ def make_config(**overrides) -> Config:
         default_model="model-a",
         fallbacks=["fallback"],
         cooldown_ttl=60,
+        semantic_cache_enabled=False,
     )
     if overrides:
         return base.model_copy(update=overrides)

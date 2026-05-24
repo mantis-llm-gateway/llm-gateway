@@ -699,6 +699,7 @@ source = { editable = "." }
 dependencies = [
     { name = "aioboto3" },
     { name = "any-llm-sdk", extra = ["gemini"] },
+    { name = "boto3" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "numpy" },
@@ -724,6 +725,7 @@ dev = [
 requires-dist = [
     { name = "aioboto3", specifier = ">=15.5.0" },
     { name = "any-llm-sdk", extras = ["anthropic", "gemini", "openai"], specifier = ">=1.14.0" },
+    { name = "boto3", specifier = ">=1.40.61" },
     { name = "fastapi", specifier = ">=0.136.1" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "numpy", specifier = ">=2.4.4" },

@@ -1,9 +1,12 @@
 from dataclasses import dataclass
 
+import boto3
 from redis.asyncio import Redis
 
+from gateway.cache.embedders import BedrockEmbedder
 from gateway.cache.prompt_cache import PromptCache
 from gateway.cache.redis_exact_cache_backend import RedisExactCacheBackend
+from gateway.cache.redis_semantic_cache_backend import RedisSemanticCacheBackend
 from gateway.engine import ProviderAdaptor
 from gateway.models import Config
 from gateway.settings import Settings
@@ -25,9 +28,9 @@ class AppContext:
     prompt_cache: PromptCache
 
 
-def build_context(settings: Settings, config: Config) -> AppContext:
+async def build_context(settings: Settings, config: Config) -> AppContext:
     redis = _build_redis(settings)
-    prompt_cache = _build_prompt_cache(redis)
+    prompt_cache = await _build_prompt_cache(redis, config, settings)
     adaptor = ProviderAdaptor(region_name=settings.aws_region)
     return AppContext(
         settings=settings, config=config, redis=redis, adaptor=adaptor, prompt_cache=prompt_cache
@@ -50,9 +53,22 @@ def _build_redis(settings: Settings) -> Redis:
     )
 
 
-def _build_prompt_cache(redis: Redis) -> PromptCache:
+async def _build_prompt_cache(redis: Redis, config: Config, settings: Settings) -> PromptCache:
     exact = RedisExactCacheBackend(redis)
-    return PromptCache(exact_backend=exact, semantic_backend=None)
+    semantic = None
+
+    if config.semantic_cache_enabled:
+        embedder = _build_embedder(settings)
+        semantic = RedisSemanticCacheBackend(redis, embedder)
+        await semantic.ensure_index_exists()
+
+    return PromptCache(exact_backend=exact, semantic_backend=semantic)
+
+
+# TODO: swap boto3 for aioboto3 (async BedrockEmbedder, await in semantic backend etc)
+def _build_embedder(settings: Settings) -> BedrockEmbedder:
+    bedrock_client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
+    return BedrockEmbedder(bedrock_client)
 
 
 async def shutdown_context(ctx: AppContext) -> None:

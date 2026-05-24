@@ -98,6 +98,7 @@ def test_config() -> Config:
         default_model="model-a",
         fallbacks=["fallback"],
         cooldown_ttl=60,
+        semantic_cache_enabled=False,
     )
 
 
@@ -115,7 +116,11 @@ def test_context(
 
 
 @pytest.fixture
-def client(test_context):
+def client(test_context, monkeypatch):
+    # Forces lifespan to load a test Config (with semantic cache off), otherwise
+    # build_context calls ensure_index_exists() which makes a real Redis call.
+    monkeypatch.setattr("gateway.main._load_config", lambda: test_context.config)
+
     # Override the lifespan-built context with our fake one.
     # TestClient triggers the lifespan, then we overwrite app.state.context.
     with TestClient(app) as c:

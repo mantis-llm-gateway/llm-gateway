@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
     config = _load_config()
-    app.state.context = build_context(settings, config)
+    app.state.context = await build_context(settings, config)
     try:
         yield
     finally:
