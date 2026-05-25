@@ -26,10 +26,12 @@ class RoutingRuleConfig(BaseModel):
 class SemanticCacheConfig(BaseModel):
     similarity_threshold: float
     top_k: int
+    conversation_size_threshold: int
 
 
 class PromptCacheConfig(BaseModel):
     ttl_seconds: int
+    temperature_threshold: float
     semantic: SemanticCacheConfig | None = None
 
 
