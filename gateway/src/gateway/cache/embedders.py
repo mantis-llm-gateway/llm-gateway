@@ -8,7 +8,7 @@ class Embedder(Protocol):
     Anything that turns text into a vector.
     """
 
-    DIMENSIONS: int
+    dimensions: int
 
     def embed(self, text: str) -> list[float]: ...
 
@@ -22,14 +22,14 @@ class BedrockEmbedder:
     Requires a Bedrock client configured with credentials
     """
 
-    def __init__(self, bedrock_client, embedding_model, dimensions):
-        self._bedrock_client = bedrock_client
+    def __init__(self, client, embedding_model, dimensions):
+        self._bedrock_client = client
         self._embedding_model = embedding_model
-        self._dimensions = dimensions
+        self.dimensions = dimensions
 
     def embed(self, text: str) -> list[float]:
         # Request parameters for Titan V2
-        body = json.dumps({"inputText": text, "dimensions": self._dimensions, "normalize": True})
+        body = json.dumps({"inputText": text, "dimensions": self.dimensions, "normalize": True})
 
         logging.info("Attempt to get embedding...")
         response = self._bedrock_client.invoke_model(

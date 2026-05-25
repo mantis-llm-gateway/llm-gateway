@@ -62,7 +62,7 @@ class RedisSemanticCacheBackend:
                 "TYPE",
                 "FLOAT32",
                 "DIM",
-                str(self._embedder.DIMENSIONS),
+                str(self._embedder.dimensions),
                 "DISTANCE_METRIC",
                 "COSINE",
                 "model",
