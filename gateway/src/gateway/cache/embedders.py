@@ -22,7 +22,7 @@ class BedrockEmbedder:
     Requires a Bedrock client configured with credentials
     """
 
-    def __init__(self, client, embedding_model, dimensions):
+    def __init__(self, client, embedding_model: str, dimensions: int):
         self._bedrock_client = client
         self._embedding_model = embedding_model
         self.dimensions = dimensions
