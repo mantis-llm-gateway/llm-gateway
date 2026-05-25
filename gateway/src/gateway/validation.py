@@ -12,7 +12,6 @@ def validate_config(config: Config) -> None:
     validate_target_retries_val(config)
     validate_initial_response_timeout(config)
     validate_cooldown_ttl(config)
-    validate_semantic_cache_enabled(config)
 
 
 def _validate_non_empty_string(value, field_description: str) -> None:
@@ -109,6 +108,34 @@ def validate_weights_in_target_list(config: Config) -> None:
             raise ValueError("All the weights for targets must not be 0")
 
 
-def validate_semantic_cache_enabled(config: Config) -> None:
-    if not isinstance(config.semantic_cache_enabled, bool):
-        raise ValueError(f"{config.semantic_cache_enabled} must be a boolean.")
+def validate_temperature_threshold(config: Config) -> None:
+    threshold = config.prompt_cache.temperature_threshold
+    if not (0.0 <= threshold <= 2.0):
+        raise ValueError("The temperature_threshold field must be in [0.0, 2.0].")
+
+
+def validate_ttl_seconds(config: Config) -> None:
+    if config.prompt_cache.ttl_seconds <= 0:
+        raise ValueError("The ttl_seconds field must be greater than 0.")
+
+
+def validate_similarity_threshold(config: Config) -> None:
+    if config.prompt_cache.semantic is None:
+        return
+    threshold = config.prompt_cache.semantic.similarity_threshold
+    if not (0.0 <= threshold <= 1.0):
+        raise ValueError("The similarity_threshold field must be in [0.0, 1.0].")
+
+
+def validate_top_k(config: Config) -> None:
+    if config.prompt_cache.semantic is None:
+        return
+    if config.prompt_cache.semantic.top_k <= 0:
+        raise ValueError("The top_k field must be greater than 0.")
+
+
+def validate_conversation_size_threshold(config: Config) -> None:
+    if config.prompt_cache.semantic is None:
+        return
+    if config.prompt_cache.semantic.conversation_size_threshold <= 0:
+        raise ValueError("The conversation_size_threshold field must be greater than 0.")
