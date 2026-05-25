@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime, timedelta
 
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -5,6 +6,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from gateway.context import AppContext
 from gateway.engine import Abort, CompleteSuccess, Failover, StreamingSuccess, execute_attempt
 from gateway.routing import resolve_attempt_chain
+
+logger = logging.getLogger(__name__)
 
 
 async def orchestrate(
@@ -26,7 +29,8 @@ async def orchestrate(
     TODO: Cache lookup at entry (PromptCache.get) and write-through on Success
     once the executor returns the response payload.
     """
-    deadline = datetime.now(UTC) + timedelta(seconds=ctx.config.initial_response_timeout)
+    start_time = datetime.now(UTC)
+    deadline = start_time + timedelta(seconds=ctx.config.initial_response_timeout)
     resolved_chain = resolve_attempt_chain(metadata, ctx.config)
 
     last_status: int | None = None
@@ -34,7 +38,7 @@ async def orchestrate(
         if datetime.now(UTC) > deadline:
             return JSONResponse(status_code=504, content={"error": "request timed out"})
 
-        if await ctx.redis.exists(f"cooldown:{target.provider}:{target.model}"):
+        if await ctx.redis.exists(f"gateway:cooldown:{target.provider}:{target.model}"):
             continue
 
         if not stream:
@@ -44,12 +48,27 @@ async def orchestrate(
                 provider=target.provider,
             )
             if cached is not None:
+                latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+                logger.info(
+                    "cache hit",
+                    extra={
+                        "metadata": metadata,
+                        "stream": stream,
+                        "prompt": prompt,
+                        "response": cached,
+                        "provider": target.provider,
+                        "model": target.model,
+                        "latency_ms": latency_ms,
+                    },
+                )
                 return JSONResponse(content={"response": cached})
 
         verdict = await execute_attempt(
             target,
+            metadata=metadata,
             prompt=prompt,
             stream=stream,
+            start_time=start_time,
             adaptor=ctx.adaptor,
             redis=ctx.redis,
             target_retries=ctx.config.target_retries,
@@ -65,16 +84,54 @@ async def orchestrate(
                         model=target.model,
                         provider=target.provider,
                     )
+
+                    latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+                    logger.info(
+                        "successful non-streamed LLM response",
+                        extra={
+                            "metadata": metadata,
+                            "stream": stream,
+                            "prompt": prompt,
+                            "response": text,
+                            "provider": target.provider,
+                            "model": target.model,
+                            "latency_ms": latency_ms,
+                        },
+                    )
                 return JSONResponse(content={"response": text})
             case StreamingSuccess(chunks=g):
                 return StreamingResponse(g, media_type="text/event-stream")
             case Abort(status_code=code, message=msg):
+                latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+                logger.warning(
+                    "abort",
+                    extra={
+                        "metadata": metadata,
+                        "stream": stream,
+                        "status_code": code,
+                        "error_message": msg,
+                        "latency_ms": latency_ms,
+                    },
+                )
                 return JSONResponse(status_code=code, content={"error": msg})
             case Failover(status_code=code):
                 last_status = code
+                logger.info(
+                    "failover", extra={"metadata": metadata, "stream": stream, "prompt": prompt}
+                )
                 continue
 
     if last_status is not None:
+        latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+        logger.warning(
+            "targets exhausted",
+            extra={
+                "metadata": metadata,
+                "status_code": last_status,
+                "error_message": "service unavailable",
+                "latency_ms": latency_ms,
+            },
+        )
         return JSONResponse(status_code=last_status, content={"error": "service unavailable"})
 
     return None
