@@ -1,34 +1,20 @@
 import logging
-from collections.abc import AsyncIterator
 
 from botocore.exceptions import ClientError
 from redis.asyncio import Redis
 
-from gateway.engine.adaptor import EndOfStream, Message, ProviderAdaptor, TokenChunk
-from gateway.engine.errors import ErrorAction, classify_bedrock_error
+from gateway.engine.adaptor import Message, ProviderAdaptor
+from gateway.engine.errors import (
+    ErrorAction,
+    bedrock_error_code,
+    bedrock_error_message,
+    bedrock_status_code,
+    classify_bedrock_error,
+)
 from gateway.engine.verdict import Abort, CompleteSuccess, Failover, StreamingSuccess, Verdict
 from gateway.routing import ResolvedTarget
 
 logger = logging.getLogger(__name__)
-
-
-async def _token_strings(
-    chunks: AsyncIterator[TokenChunk | EndOfStream], first_chunk: TokenChunk | EndOfStream
-) -> AsyncIterator[str]:
-    """Convert adaptor chunks into plain strings for StreamingResponse.
-
-    `execute_attempt` already consumed one item from the adaptor so it could catch
-    pre-stream provider errors. This helper yields that first item, then keeps
-    consuming the remaining stream.
-    """
-    if not isinstance(first_chunk, EndOfStream):
-        yield first_chunk["token"]
-
-    async for chunk in chunks:
-        if isinstance(chunk, EndOfStream):
-            break
-
-        yield chunk["token"]
 
 
 async def execute_attempt(
@@ -51,34 +37,22 @@ async def execute_attempt(
     last_status: int | None = None
     for _ in range(1 + target_retries):
         try:
-            chunks = adaptor.send_request(model_id, messages, stream)
-
             if stream:
-                first_chunk = await anext(chunks)
-                return StreamingSuccess(chunks=_token_strings(chunks, first_chunk))
+                chunks = await adaptor.stream_request(model_id, messages)
+                return StreamingSuccess(chunks=chunks)
 
-            async for chunk in chunks:
-                if isinstance(chunk, EndOfStream):
-                    break
-
-                return CompleteSuccess(response=chunk["token"])
-
-            # In case we get no usable content from the provider
-            return Failover(status_code=502)
-
-        except StopAsyncIteration:
-            # If stream ends before yielding tokens or EndOfStream
-            return Failover(status_code=502)
+            text = await adaptor.send_request(model_id, messages)
+            return CompleteSuccess(response=text)
 
         except ClientError as e:
-            err_code = e.response["Error"]["Code"]
-            err_msg = e.response["Error"].get("Message", "")
+            err_code = bedrock_error_code(e)
+            err_msg = bedrock_error_message(e)
             logger.warning(
                 "bedrock call failed: provider=%s model=%s code=%s status=%s msg=%s",
                 target.provider,
                 target.model,
                 err_code,
-                e.response["ResponseMetadata"]["HTTPStatusCode"],
+                bedrock_status_code(e),
                 err_msg,
             )
             action, status = classify_bedrock_error(e)

@@ -3,7 +3,6 @@ from fastapi.testclient import TestClient
 
 from gateway.cache.prompt_cache import PromptCache
 from gateway.context import AppContext
-from gateway.engine import EndOfStream
 from gateway.main import app
 from gateway.models import (
     AliasConfig,
@@ -41,20 +40,29 @@ class FakeAdaptor:
     """ProviderAdaptor stand-in. Configurable response/error for tests."""
 
     def __init__(self) -> None:
-        self.send_request_calls: list[tuple[str, list, bool]] = []
-        self.response: list[dict] = [{"token": "fake response"}]
+        self.send_request_calls: list[tuple[str, list]] = []
+        self.stream_request_calls: list[tuple[str, list]] = []
+        self.response: str = "fake response"
+        self.stream_response: list[str] = ["fake response"]
         self.error: Exception | None = None
 
-    async def send_request(self, model_id: str, messages: list, stream: bool):
-        self.send_request_calls.append((model_id, messages, stream))
+    async def send_request(self, model_id: str, messages: list) -> str:
+        self.send_request_calls.append((model_id, messages))
         if self.error is not None:
             raise self.error
 
-        for chunk in self.response:
-            yield chunk
+        return self.response
 
-        if stream:
-            yield EndOfStream()
+    async def stream_request(self, model_id: str, messages: list):
+        self.stream_request_calls.append((model_id, messages))
+        if self.error is not None:
+            raise self.error
+
+        async def chunks():
+            for chunk in self.stream_response:
+                yield chunk
+
+        return chunks()
 
 
 @pytest.fixture

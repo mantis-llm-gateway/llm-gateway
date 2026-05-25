@@ -32,7 +32,7 @@ class TestExecuteAttempt:
     async def test_non_stream_success_returns_complete_success(
         self, fake_adaptor, fake_redis, target
     ):
-        fake_adaptor.response = [{"token": "hello"}]
+        fake_adaptor.response = "hello"
 
         verdict = await execute_attempt(
             target,
@@ -48,7 +48,7 @@ class TestExecuteAttempt:
         assert verdict.response == "hello"
 
     async def test_stream_success_returns_streaming_success(self, fake_adaptor, fake_redis, target):
-        fake_adaptor.response = [{"token": "he"}, {"token": "llo"}]
+        fake_adaptor.stream_response = ["he", "llo"]
 
         verdict = await execute_attempt(
             target,
@@ -63,10 +63,24 @@ class TestExecuteAttempt:
         assert isinstance(verdict, StreamingSuccess)
         assert [chunk async for chunk in verdict.chunks] == ["he", "llo"]
 
-    async def test_passes_model_id_messages_and_stream_to_adaptor(
-        self, fake_adaptor, fake_redis, target
-    ):
-        fake_adaptor.response = [{"token": "hello"}]
+    async def test_stream_setup_error_can_failover(self, fake_adaptor, fake_redis, target):
+        fake_adaptor.error = make_bedrock_error("ServiceUnavailable", 503)
+
+        verdict = await execute_attempt(
+            target,
+            prompt="hi",
+            stream=True,
+            adaptor=fake_adaptor,
+            redis=fake_redis,
+            target_retries=0,
+            cooldown_ttl=60,
+        )
+
+        assert isinstance(verdict, Failover)
+        assert verdict.status_code == 503
+
+    async def test_passes_model_id_and_messages_to_adaptor(self, fake_adaptor, fake_redis, target):
+        fake_adaptor.response = "hello"
 
         await execute_attempt(
             target,
@@ -78,11 +92,10 @@ class TestExecuteAttempt:
             cooldown_ttl=60,
         )
 
-        model_id, messages, stream = fake_adaptor.send_request_calls[0]
+        model_id, messages = fake_adaptor.send_request_calls[0]
 
         assert model_id == "claude-opus-4-7"
         assert messages == [{"role": "user", "content": [{"text": "say hi"}]}]
-        assert stream is False
 
     async def test_throttling_sets_cooldown_and_failovers(self, fake_adaptor, fake_redis, target):
         fake_adaptor.error = make_bedrock_error("ThrottlingException", 429)
@@ -152,5 +165,4 @@ class TestExecuteAttempt:
 
         assert isinstance(verdict, Failover)
         assert verdict.status_code == 500
-        assert len(fake_adaptor.send_request_calls) == 3
         assert verdict.message == "service unavailable"

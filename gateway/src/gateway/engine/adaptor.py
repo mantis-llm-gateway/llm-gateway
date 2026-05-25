@@ -1,5 +1,7 @@
-from collections.abc import AsyncGenerator
-from typing import TypedDict
+import sys
+from collections.abc import AsyncIterator
+from types import TracebackType
+from typing import Any, Protocol, TypedDict, cast
 
 import aioboto3  # type: ignore
 
@@ -8,10 +10,6 @@ import aioboto3  # type: ignore
 from dotenv import load_dotenv
 
 load_dotenv()
-
-
-class TokenChunk(TypedDict):
-    token: str
 
 
 class _Text(TypedDict):
@@ -23,8 +21,15 @@ class Message(TypedDict):
     content: list[_Text]
 
 
-class EndOfStream:
-    pass
+class _AsyncClientContext(Protocol):
+    async def __aenter__(self) -> Any: ...
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None: ...
 
 
 class ProviderAdaptor:
@@ -32,36 +37,37 @@ class ProviderAdaptor:
         self.session = aioboto3.Session()
         self.region_name = region_name
 
-    async def send_request(self, model_id: str, messages: list[Message], stream: bool = False):
-        if stream:
-            async for chunk in self._stream_response(model_id, messages):
-                yield chunk
-        else:
-            yield await self._non_streaming_response(model_id, messages)
+    def _bedrock_client(self) -> _AsyncClientContext:
+        return cast(
+            _AsyncClientContext,
+            self.session.client("bedrock-runtime", region_name=self.region_name),
+        )
 
-    async def _non_streaming_response(
-        self, model_id: str, messages: list[Message]
-    ) -> TokenChunk | EndOfStream:
-        # types in below try block are ignored because aioboto3 doesn't ship type stubs.
-        async with self.session.client("bedrock-runtime", region_name=self.region_name) as client:  # type: ignore
-            response = await client.converse(  # type: ignore
-                modelId=model_id,
-                messages=messages,
-            )
-            return {"token": response["output"]["message"]["content"][0]["text"] or ""}
+    async def send_request(self, model_id: str, messages: list[Message]) -> str:
+        async with self._bedrock_client() as client:
+            response = await client.converse(modelId=model_id, messages=messages)
+            return response["output"]["message"]["content"][0]["text"] or ""
 
-    async def _stream_response(
-        self, model_id: str, messages: list[Message]
-    ) -> AsyncGenerator[TokenChunk | EndOfStream, None]:
-        # types in below try block are ignored because aioboto3 doesn't ship type stubs.
-        async with self.session.client("bedrock-runtime", region_name=self.region_name) as client:  # type: ignore
-            response = await client.converse_stream(  # type: ignore
-                modelId=model_id,
-                messages=messages,
-            )
-            async for event in response["stream"]:  # type: ignore
-                if "contentBlockDelta" in event:
-                    delta = event["contentBlockDelta"]["delta"]  # type: ignore
-                    if "text" in delta:
-                        yield {"token": delta["text"]}
-            yield EndOfStream()
+    async def stream_request(self, model_id: str, messages: list[Message]) -> AsyncIterator[str]:
+        client_context = self._bedrock_client()
+        client = await client_context.__aenter__()
+        try:
+            response = await client.converse_stream(modelId=model_id, messages=messages)
+        except BaseException:
+            await client_context.__aexit__(*sys.exc_info())
+            raise
+
+        async def chunks() -> AsyncIterator[str]:
+            try:
+                async for event in response["stream"]:
+                    if "contentBlockDelta" in event:
+                        delta = event["contentBlockDelta"]["delta"]
+                        if "text" in delta:
+                            yield delta["text"]
+            except BaseException:
+                await client_context.__aexit__(*sys.exc_info())
+                raise
+            else:
+                await client_context.__aexit__(None, None, None)
+
+        return chunks()
