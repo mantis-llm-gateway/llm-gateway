@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 from botocore.exceptions import ClientError
 
@@ -5,6 +7,10 @@ from gateway.engine.executor import execute_attempt
 from gateway.engine.verdict import Abort, CompleteSuccess, Failover, StreamingSuccess
 from gateway.models import ChatMessageRequest
 from gateway.routing import ResolvedTarget
+
+
+def _start_time() -> datetime:
+    return datetime.now(UTC)
 
 
 def make_bedrock_error(code: str, http: int) -> ClientError:
@@ -42,7 +48,10 @@ class TestExecuteAttempt:
         verdict = await execute_attempt(
             target,
             messages=make_messages(),
+            metadata={},
+            prompt="hi",
             stream=False,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=0,
@@ -58,7 +67,10 @@ class TestExecuteAttempt:
         verdict = await execute_attempt(
             target,
             messages=make_messages(),
+            metadata={},
+            prompt="hi",
             stream=True,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=0,
@@ -74,7 +86,10 @@ class TestExecuteAttempt:
         verdict = await execute_attempt(
             target,
             messages=make_messages(),
+            metadata={},
+            prompt="hi",
             stream=True,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=0,
@@ -94,7 +109,10 @@ class TestExecuteAttempt:
                 ChatMessageRequest(role="assistant", content="hi"),
                 ChatMessageRequest(role="user", content="say it again"),
             ],
+            metadata={},
+            prompt="say hi",
             stream=False,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=0,
@@ -116,7 +134,10 @@ class TestExecuteAttempt:
         verdict = await execute_attempt(
             target,
             messages=make_messages(),
+            metadata={},
+            prompt="hi",
             stream=False,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=0,
@@ -124,7 +145,7 @@ class TestExecuteAttempt:
         )
 
         assert isinstance(verdict, Failover)
-        assert "cooldown:bedrock:claude-opus-4-7" in fake_redis._cooldowns
+        assert "gateway:cooldown:bedrock:claude-opus-4-7" in fake_redis._cooldowns
         assert verdict.message == "ThrottlingException"
 
     async def test_service_unavailable_failovers_without_cooldown(
@@ -135,7 +156,10 @@ class TestExecuteAttempt:
         verdict = await execute_attempt(
             target,
             messages=make_messages(),
+            metadata={},
+            prompt="hi",
             stream=False,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=0,
@@ -152,7 +176,10 @@ class TestExecuteAttempt:
         verdict = await execute_attempt(
             target,
             messages=make_messages(),
+            metadata={},
+            prompt="hi",
             stream=False,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=0,
@@ -169,7 +196,10 @@ class TestExecuteAttempt:
         verdict = await execute_attempt(
             target,
             messages=make_messages(),
+            metadata={},
+            prompt="hi",
             stream=False,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=2,
