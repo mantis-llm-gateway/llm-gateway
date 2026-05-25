@@ -32,14 +32,13 @@ class PromptCache:
     hit = await cache.get(prompt=..., model=..., provider=...)
     """
 
-    DEFAULT_TTL_SECONDS = 3600
     PREFIX = "prompt:exact:"
 
     def __init__(
         self,
+        default_ttl_seconds: int,
         exact_backend: ExactCacheBackend,
         semantic_backend: SemanticCacheBackend | None = None,
-        default_ttl_seconds: int = DEFAULT_TTL_SECONDS,
     ):
         self._exact = exact_backend
         self._semantic = semantic_backend

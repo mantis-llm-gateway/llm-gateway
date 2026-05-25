@@ -54,15 +54,24 @@ def _build_redis(settings: Settings) -> Redis:
 
 
 async def _build_prompt_cache(redis: Redis, config: Config, settings: Settings) -> PromptCache:
+    pc = config.prompt_cache
     exact = RedisExactCacheBackend(redis)
     semantic = None
 
-    if config.semantic_cache_enabled:
+    if pc.semantic is not None:
         embedder = _build_embedder(settings)
-        semantic = RedisSemanticCacheBackend(redis, embedder)
+        semantic = RedisSemanticCacheBackend(
+            redis,
+            embedder,
+            similarity_threshold=pc.semantic.similarity_threshold,
+            top_k=pc.semantic.top_k,
+        )
+
         await semantic.ensure_index_exists()
 
-    return PromptCache(exact_backend=exact, semantic_backend=semantic)
+    return PromptCache(
+        default_ttl_seconds=pc.ttl_seconds, exact_backend=exact, semantic_backend=semantic
+    )
 
 
 # TODO: swap boto3 for aioboto3 (async BedrockEmbedder, await in semantic backend etc)

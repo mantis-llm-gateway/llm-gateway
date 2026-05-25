@@ -8,6 +8,7 @@ from gateway.main import app
 from gateway.models import (
     AliasConfig,
     Config,
+    PromptCacheConfig,
     RoutingRuleConfig,
     RuleMatchConfig,
     TargetConfig,
@@ -65,7 +66,7 @@ def fake_redis() -> FakeAsyncRedis:
 @pytest.fixture
 def fake_prompt_cache() -> PromptCache:
     exact = InMemoryCacheBackend()
-    return PromptCache(exact_backend=exact)
+    return PromptCache(default_ttl_seconds=3600, exact_backend=exact)
 
 
 @pytest.fixture
@@ -98,7 +99,7 @@ def test_config() -> Config:
         default_model="model-a",
         fallbacks=["fallback"],
         cooldown_ttl=60,
-        semantic_cache_enabled=False,
+        prompt_cache=PromptCacheConfig(ttl_seconds=60),
     )
 
 

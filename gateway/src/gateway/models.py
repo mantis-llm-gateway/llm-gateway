@@ -23,6 +23,16 @@ class RoutingRuleConfig(BaseModel):
     targets: list[TargetConfig]
 
 
+class SemanticCacheConfig(BaseModel):
+    similarity_threshold: float
+    top_k: int
+
+
+class PromptCacheConfig(BaseModel):
+    ttl_seconds: int
+    semantic: SemanticCacheConfig | None = None
+
+
 class Config(BaseModel):
     aliases: dict[str, AliasConfig]
     routing_rules: list[RoutingRuleConfig]
@@ -31,4 +41,4 @@ class Config(BaseModel):
     initial_response_timeout: int
     default_model: str
     cooldown_ttl: int
-    semantic_cache_enabled: bool
+    prompt_cache: PromptCacheConfig
