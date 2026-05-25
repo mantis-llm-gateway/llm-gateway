@@ -5,11 +5,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from botocore.exceptions import ClientError
 
-from gateway.engine import EndOfStream, Message, ProviderAdaptor
+from gateway.engine import Message, ProviderAdaptor
 
 MODEL_ID = "google.gemma-3-4b-it"
 MESSAGES: list[Message] = [{"role": "user", "content": [{"text": "Hello"}]}]
-# list[dict[str, Sequence[Collection[str]]]]
 
 
 class _TextBlock(TypedDict):
@@ -73,38 +72,39 @@ def provider_adaptor() -> ProviderAdaptor:
 
 
 @pytest.mark.asyncio
-async def test_non_stream_response_success(provider_adaptor: ProviderAdaptor):
+async def test_send_request_success(provider_adaptor: ProviderAdaptor):
     client = make_mock_bedrock_client(provider_adaptor)
     client.converse = AsyncMock(return_value=make_non_stream_bedrock_response("mock response"))
-    results = [r async for r in provider_adaptor.send_request(MODEL_ID, MESSAGES)]
-    assert results == [{"token": "mock response"}]
+
+    result = await provider_adaptor.send_request(MODEL_ID, MESSAGES)
+
+    assert result == "mock response"
 
 
 @pytest.mark.asyncio
-async def test_non_stream_client_error_propagates(provider_adaptor: ProviderAdaptor):
+async def test_send_request_client_error_propagates(provider_adaptor: ProviderAdaptor):
     client = make_mock_bedrock_client(provider_adaptor)
     client.converse = AsyncMock(side_effect=make_client_error())
+
     with pytest.raises(ClientError):
-        async for _ in provider_adaptor.send_request(MODEL_ID, MESSAGES):
-            pass
+        await provider_adaptor.send_request(MODEL_ID, MESSAGES)
 
 
 @pytest.mark.asyncio
-async def test_stream_response_success(provider_adaptor: ProviderAdaptor):
+async def test_stream_request_success(provider_adaptor: ProviderAdaptor):
     client = make_mock_bedrock_client(provider_adaptor)
     client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
-    results = [
-        r
-        async for r in provider_adaptor.send_request(MODEL_ID, MESSAGES, stream=True)
-        if not isinstance(r, EndOfStream)
-    ]
-    assert results == [{"token": "mock response"}]
+
+    results = [token async for token in provider_adaptor.stream_request(MODEL_ID, MESSAGES)]
+
+    assert results == ["mock response"]
 
 
 @pytest.mark.asyncio
-async def test_stream_client_error_propagates(provider_adaptor: ProviderAdaptor):
+async def test_stream_request_client_error_propagates(provider_adaptor: ProviderAdaptor):
     client = make_mock_bedrock_client(provider_adaptor)
     client.converse_stream = AsyncMock(side_effect=make_client_error())
+
     with pytest.raises(ClientError):
-        async for _ in provider_adaptor.send_request(MODEL_ID, MESSAGES, stream=True):
+        async for _ in provider_adaptor.stream_request(MODEL_ID, MESSAGES):
             pass
