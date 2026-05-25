@@ -58,8 +58,11 @@ class FakeAdaptor:
         if self.error is not None:
             raise self.error
 
-        for chunk in self.stream_response:
-            yield chunk
+        async def chunks():
+            for chunk in self.stream_response:
+                yield chunk
+
+        return chunks()
 
 
 @pytest.fixture

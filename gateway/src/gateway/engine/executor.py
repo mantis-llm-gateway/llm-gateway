@@ -38,7 +38,8 @@ async def execute_attempt(
     for _ in range(1 + target_retries):
         try:
             if stream:
-                return StreamingSuccess(chunks=adaptor.stream_request(model_id, messages))
+                chunks = await adaptor.stream_request(model_id, messages)
+                return StreamingSuccess(chunks=chunks)
 
             text = await adaptor.send_request(model_id, messages)
             return CompleteSuccess(response=text)

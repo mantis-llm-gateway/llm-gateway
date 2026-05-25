@@ -95,7 +95,8 @@ async def test_stream_request_success(provider_adaptor: ProviderAdaptor):
     client = make_mock_bedrock_client(provider_adaptor)
     client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
 
-    results = [token async for token in provider_adaptor.stream_request(MODEL_ID, MESSAGES)]
+    stream = await provider_adaptor.stream_request(MODEL_ID, MESSAGES)
+    results = [token async for token in stream]
 
     assert results == ["mock response"]
 
@@ -106,5 +107,4 @@ async def test_stream_request_client_error_propagates(provider_adaptor: Provider
     client.converse_stream = AsyncMock(side_effect=make_client_error())
 
     with pytest.raises(ClientError):
-        async for _ in provider_adaptor.stream_request(MODEL_ID, MESSAGES):
-            pass
+        await provider_adaptor.stream_request(MODEL_ID, MESSAGES)

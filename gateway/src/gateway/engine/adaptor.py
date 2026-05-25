@@ -1,4 +1,5 @@
-from collections.abc import AsyncGenerator
+import sys
+from collections.abc import AsyncIterator
 from types import TracebackType
 from typing import Any, Protocol, TypedDict, cast
 
@@ -47,14 +48,26 @@ class ProviderAdaptor:
             response = await client.converse(modelId=model_id, messages=messages)
             return response["output"]["message"]["content"][0]["text"] or ""
 
-    async def stream_request(
-        self, model_id: str, messages: list[Message]
-    ) -> AsyncGenerator[str, None]:
-        async with self._bedrock_client() as client:
+    async def stream_request(self, model_id: str, messages: list[Message]) -> AsyncIterator[str]:
+        client_context = self._bedrock_client()
+        client = await client_context.__aenter__()
+        try:
             response = await client.converse_stream(modelId=model_id, messages=messages)
+        except BaseException:
+            await client_context.__aexit__(*sys.exc_info())
+            raise
 
-            async for event in response["stream"]:
-                if "contentBlockDelta" in event:
-                    delta = event["contentBlockDelta"]["delta"]
-                    if "text" in delta:
-                        yield delta["text"]
+        async def chunks() -> AsyncIterator[str]:
+            try:
+                async for event in response["stream"]:
+                    if "contentBlockDelta" in event:
+                        delta = event["contentBlockDelta"]["delta"]
+                        if "text" in delta:
+                            yield delta["text"]
+            except BaseException:
+                await client_context.__aexit__(*sys.exc_info())
+                raise
+            else:
+                await client_context.__aexit__(None, None, None)
+
+        return chunks()

@@ -63,6 +63,22 @@ class TestExecuteAttempt:
         assert isinstance(verdict, StreamingSuccess)
         assert [chunk async for chunk in verdict.chunks] == ["he", "llo"]
 
+    async def test_stream_setup_error_can_failover(self, fake_adaptor, fake_redis, target):
+        fake_adaptor.error = make_bedrock_error("ServiceUnavailable", 503)
+
+        verdict = await execute_attempt(
+            target,
+            prompt="hi",
+            stream=True,
+            adaptor=fake_adaptor,
+            redis=fake_redis,
+            target_retries=0,
+            cooldown_ttl=60,
+        )
+
+        assert isinstance(verdict, Failover)
+        assert verdict.status_code == 503
+
     async def test_passes_model_id_and_messages_to_adaptor(self, fake_adaptor, fake_redis, target):
         fake_adaptor.response = "hello"
 
