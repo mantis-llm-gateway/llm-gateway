@@ -37,9 +37,11 @@ def make_config(**overrides) -> Config:
         cooldown_ttl=60,
         prompt_cache=PromptCacheConfig(
             ttl_seconds=60,
+            temperature_threshold=0.3,
             semantic=SemanticCacheConfig(
                 similarity_threshold=0.8,
                 top_k=3,
+                conversation_size_threshold=3,
             ),
         ),
     )
