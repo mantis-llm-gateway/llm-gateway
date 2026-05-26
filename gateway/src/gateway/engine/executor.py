@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from botocore.exceptions import ClientError
 from redis.asyncio import Redis
 
-from gateway.engine.adaptor import Message, ProviderAdaptor
+from gateway.engine.adaptor import GuardrailIntervention, Message, ProviderAdaptor
 from gateway.engine.errors import (
     ErrorAction,
     bedrock_error_code,
@@ -101,8 +101,20 @@ async def execute_attempt(
                     )
                 )
 
-            text = await adaptor.send_request(model_id, provider_messages)
-            return CompleteSuccess(response=text)
+            result = await adaptor.send_request(model_id, provider_messages)
+            if isinstance(result, GuardrailIntervention):
+                logger.warning(
+                    "guardrail intervened",
+                    extra={
+                        "metadata": metadata,
+                        "stream": stream,
+                        "provider": target.provider,
+                        "model": target.model,
+                        "trace": result.trace,
+                    },
+                )
+                return CompleteSuccess(response=result.response)
+            return CompleteSuccess(response=result)
 
         except ClientError as e:
             err_code = bedrock_error_code(e)
@@ -127,7 +139,6 @@ async def execute_attempt(
                         extra={
                             "metadata": metadata,
                             "stream": stream,
-                            "prompt": prompt,
                             "provider": target.provider,
                             "model": target.model,
                         },
