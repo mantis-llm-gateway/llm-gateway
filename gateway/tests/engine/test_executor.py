@@ -78,8 +78,10 @@ class TestExecuteAttempt:
 
         verdict = await execute_attempt(
             target,
+            metadata={},
             prompt="hi",
             stream=True,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=0,
