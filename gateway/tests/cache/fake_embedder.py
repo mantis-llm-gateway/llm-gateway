@@ -10,7 +10,7 @@ class FakeEmbedder:
     This is only for creating fake vectors and is not for testing semantic similarity.
     """
 
-    DIMENSIONS: int = 1024
+    dimensions: int = 1024
 
     def embed(self, text: str) -> list[float]:
         # Deterministic: same text → same vector.
@@ -19,6 +19,6 @@ class FakeEmbedder:
 
         seed = int(hashlib.sha256(text.encode()).hexdigest()[:8], 16)
         rng = np.random.default_rng(seed)
-        vec = rng.standard_normal(self.DIMENSIONS).astype(np.float32)
+        vec = rng.standard_normal(self.dimensions).astype(np.float32)
         vec /= np.linalg.norm(vec)  # normalize, like Titan does
         return vec.tolist()
