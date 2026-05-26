@@ -1,5 +1,6 @@
 import sys
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from types import TracebackType
 from typing import Any, Protocol, TypedDict, cast
 
@@ -32,8 +33,19 @@ class _AsyncClientContext(Protocol):
     ) -> None: ...
 
 
+@dataclass(frozen=True)
+class GuardrailIntervention:
+    response: str
+    trace: dict
+
+
 class ProviderAdaptor:
-    def __init__(self, region_name: str, guardrail_id: str | None, guardrail_version: str | None):
+    def __init__(
+        self,
+        region_name: str,
+        guardrail_id: str | None,
+        guardrail_version: str | None,
+    ):
         self.session = aioboto3.Session()
         self.region_name = region_name
         self.guardrail_id = guardrail_id
@@ -45,7 +57,7 @@ class ProviderAdaptor:
             self.session.client("bedrock-runtime", region_name=self.region_name),
         )
 
-    async def send_request(self, model_id: str, messages: list[Message]) -> str:
+    async def send_request(self, model_id: str, messages: list[Message]) -> str | GuardrailIntervention:
         kwargs: dict = {"modelId": model_id, "messages": messages}
         if self.guardrail_id is not None:
             kwargs["guardrailConfig"] = {
@@ -55,6 +67,10 @@ class ProviderAdaptor:
             }
         async with self._bedrock_client() as client:
             response = await client.converse(**kwargs)
+            if response.get("stopReason") == "guardrail_intervened":
+                blocked_text = response["output"]["message"]["content"][0]["text"] or ""
+                trace = response.get("trace", {}).get("guardrail", {})
+                return GuardrailIntervention(response=blocked_text, trace=trace)
             return response["output"]["message"]["content"][0]["text"] or ""
 
     async def stream_request(self, model_id: str, messages: list[Message]) -> AsyncIterator[str]:

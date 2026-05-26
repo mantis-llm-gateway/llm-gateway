@@ -54,8 +54,6 @@ async def orchestrate(
                     extra={
                         "metadata": metadata,
                         "stream": stream,
-                        "prompt": prompt,
-                        "response": cached,
                         "provider": target.provider,
                         "model": target.model,
                         "latency_ms": latency_ms,
@@ -91,8 +89,6 @@ async def orchestrate(
                         extra={
                             "metadata": metadata,
                             "stream": stream,
-                            "prompt": prompt,
-                            "response": text,
                             "provider": target.provider,
                             "model": target.model,
                             "latency_ms": latency_ms,
@@ -116,9 +112,7 @@ async def orchestrate(
                 return JSONResponse(status_code=code, content={"error": msg})
             case Failover(status_code=code):
                 last_status = code
-                logger.info(
-                    "failover", extra={"metadata": metadata, "stream": stream, "prompt": prompt}
-                )
+                logger.info("failover", extra={"metadata": metadata, "stream": stream})
                 continue
 
     if last_status is not None:

@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 
 from gateway.cache.prompt_cache import PromptCache
 from gateway.context import AppContext
+from gateway.engine import GuardrailIntervention
 from gateway.main import app
 from gateway.models import (
     AliasConfig,
@@ -46,11 +47,15 @@ class FakeAdaptor:
         self.response: str = "fake response"
         self.stream_response: list[str] = ["fake response"]
         self.error: Exception | None = None
+        self.guardrail_intervention: bool = False
 
-    async def send_request(self, model_id: str, messages: list) -> str:
+    async def send_request(self, model_id: str, messages: list) -> str | GuardrailIntervention:
         self.send_request_calls.append((model_id, messages))
         if self.error is not None:
             raise self.error
+
+        if self.guardrail_intervention:
+            return GuardrailIntervention(response="blocked by guardrail", trace={"reason": "test"})
 
         return self.response
 

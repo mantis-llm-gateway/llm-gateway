@@ -1,4 +1,5 @@
 from gateway.engine.adaptor import (
+    GuardrailIntervention,
     Message,
     ProviderAdaptor,
 )
@@ -9,6 +10,7 @@ __all__ = [
     "Abort",
     "CompleteSuccess",
     "Failover",
+    "GuardrailIntervention",
     "Message",
     "ProviderAdaptor",
     "StreamingSuccess",

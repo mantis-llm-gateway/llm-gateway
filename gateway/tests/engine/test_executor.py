@@ -186,3 +186,27 @@ class TestExecuteAttempt:
         assert isinstance(verdict, Failover)
         assert verdict.status_code == 500
         assert verdict.message == "service unavailable"
+
+    async def test_guardrail_intervention_logs_warning_and_returns_complete_success(
+        self, fake_adaptor, fake_redis, target, caplog
+    ):
+        import logging
+
+        fake_adaptor.guardrail_intervention = True
+
+        with caplog.at_level(logging.WARNING, logger="gateway.engine.executor"):
+            verdict = await execute_attempt(
+                target,
+                metadata={"user": "test"},
+                prompt="hi",
+                stream=False,
+                start_time=_start_time(),
+                adaptor=fake_adaptor,
+                redis=fake_redis,
+                target_retries=0,
+                cooldown_ttl=60,
+            )
+
+        assert isinstance(verdict, CompleteSuccess)
+        assert verdict.response == "blocked by guardrail"
+        assert any("guardrail intervened" in r.message for r in caplog.records)
