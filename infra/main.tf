@@ -8,6 +8,11 @@ variable "owner" {
   type        = string
   description = "Developer name used to namespace resources (e.g. riz, sam, rey)"
   default     = "admin"
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]{1,20}$", var.owner))
+    error_message = "owner must be 2-21 chars: lowercase letters, numbers, hyphens; start with a letter."
+  }
 }
 variable "public_subnet_cidrs" {
   type        = list(string)
@@ -443,7 +448,6 @@ resource "aws_ecs_task_definition" "gw" {
       { name = "CACHE_PORT", valueFrom = aws_ssm_parameter.cache_port.arn },
       { name = "CACHE_AUTH_TOKEN", valueFrom = "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter/gw-${var.owner}/cache/auth-token" },
       { name = "BEDROCK_GUARDRAIL_ID", valueFrom = aws_ssm_parameter.bedrock_guardrail_id.arn },
-      { name = "BEDROCK_PRIMARY_CHAT_MODEL", valueFrom = "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter/gw-${var.owner}/bedrock/primary-chat-model" }
     ]
 
     logConfiguration = {
@@ -637,7 +641,7 @@ resource "aws_ecs_service" "gw" {
   name            = "gw-${var.owner}-gateway-service"
   cluster         = aws_ecs_cluster.gw.id
   task_definition = aws_ecs_task_definition.gw.arn
-  desired_count   = 1
+  desired_count   = 0
   depends_on      = [aws_lb_listener.http]
 
   capacity_provider_strategy {
