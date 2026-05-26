@@ -3,8 +3,10 @@ import random
 from gateway.models import (
     AliasConfig,
     Config,
+    PromptCacheConfig,
     RoutingRuleConfig,
     RuleMatchConfig,
+    SemanticCacheConfig,
     TargetConfig,
 )
 from gateway.routing import ResolvedTarget, resolve_attempt_chain
@@ -33,7 +35,15 @@ def make_config(**overrides) -> Config:
         default_model="model-a",
         fallbacks=["fallback"],
         cooldown_ttl=60,
-        semantic_cache_enabled=False,
+        prompt_cache=PromptCacheConfig(
+            ttl_seconds=60,
+            temperature_threshold=0.3,
+            semantic=SemanticCacheConfig(
+                similarity_threshold=0.8,
+                top_k=3,
+                conversation_size_threshold=3,
+            ),
+        ),
     )
     if overrides:
         return base.model_copy(update=overrides)

@@ -23,10 +23,6 @@ class RedisSemanticCacheBackend:
     PREFIX = "prompt:semantic:"
     REDIS_INDEX_NAME = "idx:semantic"
 
-    # TODO: make configurable from env variables (local) or config file (production)
-    DEFAULT_SIMILARITY_THRESHOLD = 0.8
-    DEFAULT_TOP_K = 3
-
     # Used to sanitize model and provider tags when storing and looking up
     ALLOWED_TAG_CHARS = set(string.ascii_letters + string.digits + "_.")
 
@@ -34,8 +30,8 @@ class RedisSemanticCacheBackend:
         self,
         redis_client: Redis,
         embedder: Embedder,
-        similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
-        top_k: int = DEFAULT_TOP_K,
+        similarity_threshold: float,
+        top_k: int,
     ):
         self._redis = redis_client
         self._embedder = embedder
@@ -62,7 +58,7 @@ class RedisSemanticCacheBackend:
                 "TYPE",
                 "FLOAT32",
                 "DIM",
-                str(self._embedder.DIMENSIONS),
+                str(self._embedder.dimensions),
                 "DISTANCE_METRIC",
                 "COSINE",
                 "model",

@@ -5,14 +5,18 @@ import pytest
 from gateway.validation import (
     _validate_non_empty_string,
     validate_all_target_aliases,
+    validate_conversation_size_threshold,
     validate_cooldown_ttl,
     validate_default_model_existence_in_aliases,
     validate_fallback_chain,
     validate_initial_response_timeout,
     validate_no_duplicates_in_config,
     validate_routing_rules_strings,
-    validate_semantic_cache_enabled,
+    validate_similarity_threshold,
     validate_target_retries_val,
+    validate_temperature_threshold,
+    validate_top_k,
+    validate_ttl_seconds,
     validate_uniqueness_of_routing_rule_ids,
     validate_weights_in_target_list,
 )
@@ -35,6 +39,20 @@ def make_rule(id="1", name="rule-1", match=None, targets=None):
     )
 
 
+def make_prompt_cache(ttl_seconds=60, temperature_threshold=0.3, semantic=None):
+    if semantic is None:
+        semantic = SimpleNamespace(
+            similarity_threshold=0.8,
+            top_k=3,
+            conversation_size_threshold=3,
+        )
+    return SimpleNamespace(
+        ttl_seconds=ttl_seconds,
+        temperature_threshold=temperature_threshold,
+        semantic=semantic,
+    )
+
+
 def make_config(**overrides):
     defaults = dict(
         aliases={"model-a": SimpleNamespace(provider="anthropic", model="claude-3")},
@@ -44,6 +62,7 @@ def make_config(**overrides):
         target_retries=2,
         initial_response_timeout=30,
         cooldown_ttl=60,
+        prompt_cache=make_prompt_cache(),
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -257,15 +276,124 @@ class TestValidateCooldownTtl:
         validate_cooldown_ttl(make_config(cooldown_ttl=120))
 
 
-class TestValidateSemanticCacheEnabled:
-    def test_passes_for_true(self):
-        validate_semantic_cache_enabled(make_config(semantic_cache_enabled=True))
+class TestValidateTtlSeconds:
+    def test_raises_if_zero(self):
+        config = make_config(prompt_cache=make_prompt_cache(ttl_seconds=0))
+        with pytest.raises(ValueError, match="ttl_seconds"):
+            validate_ttl_seconds(config)
 
-    def test_passes_for_false(self):
-        validate_semantic_cache_enabled(make_config(semantic_cache_enabled=False))
+    def test_raises_if_negative(self):
+        config = make_config(prompt_cache=make_prompt_cache(ttl_seconds=-1))
+        with pytest.raises(ValueError, match="ttl_seconds"):
+            validate_ttl_seconds(config)
 
-    @pytest.mark.parametrize("invalid_value", ["true", 1, None])
-    def test_raises_for_non_bool(self, invalid_value):
-        config = make_config(semantic_cache_enabled=invalid_value)
-        with pytest.raises(ValueError, match="must be a boolean"):
-            validate_semantic_cache_enabled(config)
+    def test_passes_for_positive(self):
+        validate_ttl_seconds(make_config(prompt_cache=make_prompt_cache(ttl_seconds=60)))
+
+
+class TestValidateTemperatureThreshold:
+    def test_raises_if_below_zero(self):
+        config = make_config(prompt_cache=make_prompt_cache(temperature_threshold=-0.1))
+        with pytest.raises(ValueError, match="temperature_threshold"):
+            validate_temperature_threshold(config)
+
+    def test_raises_if_above_two(self):
+        config = make_config(prompt_cache=make_prompt_cache(temperature_threshold=2.1))
+        with pytest.raises(ValueError, match="temperature_threshold"):
+            validate_temperature_threshold(config)
+
+    def test_passes_for_zero(self):
+        validate_temperature_threshold(
+            make_config(prompt_cache=make_prompt_cache(temperature_threshold=0.0))
+        )
+
+    def test_passes_for_two(self):
+        validate_temperature_threshold(
+            make_config(prompt_cache=make_prompt_cache(temperature_threshold=2.0))
+        )
+
+    def test_passes_for_mid_range(self):
+        validate_temperature_threshold(
+            make_config(prompt_cache=make_prompt_cache(temperature_threshold=0.5))
+        )
+
+
+class TestValidateSimilarityThreshold:
+    def test_raises_if_below_zero(self):
+        semantic = SimpleNamespace(
+            similarity_threshold=-0.1, top_k=3, conversation_size_threshold=3
+        )
+        config = make_config(prompt_cache=make_prompt_cache(semantic=semantic))
+        with pytest.raises(ValueError, match="similarity_threshold"):
+            validate_similarity_threshold(config)
+
+    def test_raises_if_above_one(self):
+        semantic = SimpleNamespace(similarity_threshold=1.1, top_k=3, conversation_size_threshold=3)
+        config = make_config(prompt_cache=make_prompt_cache(semantic=semantic))
+        with pytest.raises(ValueError, match="similarity_threshold"):
+            validate_similarity_threshold(config)
+
+    def test_passes_for_zero(self):
+        semantic = SimpleNamespace(similarity_threshold=0.0, top_k=3, conversation_size_threshold=3)
+        validate_similarity_threshold(
+            make_config(prompt_cache=make_prompt_cache(semantic=semantic))
+        )
+
+    def test_passes_for_one(self):
+        semantic = SimpleNamespace(similarity_threshold=1.0, top_k=3, conversation_size_threshold=3)
+        validate_similarity_threshold(
+            make_config(prompt_cache=make_prompt_cache(semantic=semantic))
+        )
+
+    def test_passes_when_semantic_is_none(self):
+        validate_similarity_threshold(make_config(prompt_cache=make_prompt_cache(semantic=None)))
+
+
+class TestValidateTopK:
+    def test_raises_if_zero(self):
+        semantic = SimpleNamespace(similarity_threshold=0.8, top_k=0, conversation_size_threshold=3)
+        config = make_config(prompt_cache=make_prompt_cache(semantic=semantic))
+        with pytest.raises(ValueError, match="top_k"):
+            validate_top_k(config)
+
+    def test_raises_if_negative(self):
+        semantic = SimpleNamespace(
+            similarity_threshold=0.8, top_k=-1, conversation_size_threshold=3
+        )
+        config = make_config(prompt_cache=make_prompt_cache(semantic=semantic))
+        with pytest.raises(ValueError, match="top_k"):
+            validate_top_k(config)
+
+    def test_passes_for_positive(self):
+        semantic = SimpleNamespace(similarity_threshold=0.8, top_k=1, conversation_size_threshold=3)
+        validate_top_k(make_config(prompt_cache=make_prompt_cache(semantic=semantic)))
+
+    def test_passes_when_semantic_is_none(self):
+        validate_top_k(make_config(prompt_cache=make_prompt_cache(semantic=None)))
+
+
+class TestValidateConversationSizeThreshold:
+    def test_raises_if_zero(self):
+        semantic = SimpleNamespace(similarity_threshold=0.8, top_k=3, conversation_size_threshold=0)
+        config = make_config(prompt_cache=make_prompt_cache(semantic=semantic))
+        with pytest.raises(ValueError, match="conversation_size_threshold"):
+            validate_conversation_size_threshold(config)
+
+    def test_raises_if_negative(self):
+        semantic = SimpleNamespace(
+            similarity_threshold=0.8, top_k=3, conversation_size_threshold=-1
+        )
+        config = make_config(prompt_cache=make_prompt_cache(semantic=semantic))
+        with pytest.raises(ValueError, match="conversation_size_threshold"):
+            validate_conversation_size_threshold(config)
+
+    def test_passes_for_positive(self):
+        semantic = SimpleNamespace(similarity_threshold=0.8, top_k=3, conversation_size_threshold=1)
+        validate_conversation_size_threshold(
+            make_config(prompt_cache=make_prompt_cache(semantic=semantic))
+        )
+
+    def test_passes_when_semantic_is_none(self):
+        validate_conversation_size_threshold(
+            make_config(prompt_cache=make_prompt_cache(semantic=None))
+        )

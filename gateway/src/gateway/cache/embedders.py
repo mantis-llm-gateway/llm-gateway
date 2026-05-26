@@ -8,34 +8,33 @@ class Embedder(Protocol):
     Anything that turns text into a vector.
     """
 
-    DIMENSIONS: int
+    dimensions: int
 
     def embed(self, text: str) -> list[float]: ...
 
 
 class BedrockEmbedder:
     """
-    Embeds text using AWS Bedrock's Titan Text Embeddings V2 model.
+    Embeds text using an AWS Bedrock embedding model.
 
-    Returns normalized 1024-dim float vectors.
-    Requires AWS credentials configured for the bedrock_client passed in,
-    plus model access granted for amazon.titan-embed-text-v2:0 in the client's region.
+    Returns float vectors.
+
+    Requires a Bedrock client configured with credentials
     """
 
-    EMBEDDING_MODEL = "amazon.titan-embed-text-v2:0"
-    DIMENSIONS: int = 1024
-
-    def __init__(self, bedrock_client):
-        self._bedrock_client = bedrock_client
+    def __init__(self, client, embedding_model: str, dimensions: int):
+        self._bedrock_client = client
+        self._embedding_model = embedding_model
+        self.dimensions = dimensions
 
     def embed(self, text: str) -> list[float]:
         # Request parameters for Titan V2
-        body = json.dumps({"inputText": text, "dimensions": self.DIMENSIONS, "normalize": True})
+        body = json.dumps({"inputText": text, "dimensions": self.dimensions, "normalize": True})
 
         logging.info("Attempt to get embedding...")
         response = self._bedrock_client.invoke_model(
             body=body,
-            modelId=self.EMBEDDING_MODEL,
+            modelId=self._embedding_model,
             accept="application/json",
             contentType="application/json",
         )
