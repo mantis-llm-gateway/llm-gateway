@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from botocore.exceptions import ClientError
 from redis.asyncio import Redis
 
-<<<<<<< HEAD
 from gateway.engine.adaptor import GuardrailIntervention, Message, ProviderAdaptor
 from gateway.engine.errors import (
     ErrorAction,
@@ -14,16 +13,6 @@ from gateway.engine.errors import (
     bedrock_status_code,
     classify_bedrock_error,
 )
-=======
-from gateway.engine.adaptor import (
-    EndOfStream,
-    GuardrailIntervention,
-    Message,
-    ProviderAdaptor,
-    TokenChunk,
-)
-from gateway.engine.errors import ErrorAction, classify_bedrock_error
->>>>>>> f5e92d5 (Implemented observability for guardrails)
 from gateway.engine.verdict import Abort, CompleteSuccess, Failover, StreamingSuccess, Verdict
 from gateway.routing import ResolvedTarget
 
@@ -110,7 +99,6 @@ async def execute_attempt(
                     )
                 )
 
-<<<<<<< HEAD
             result = await adaptor.send_request(model_id, messages)
             if isinstance(result, GuardrailIntervention):
                 logger.warning(
@@ -125,33 +113,6 @@ async def execute_attempt(
                 )
                 return CompleteSuccess(response=result.response)
             return CompleteSuccess(response=result)
-=======
-            async for chunk in chunks:
-                if isinstance(chunk, EndOfStream):
-                    break
-
-                if isinstance(chunk, GuardrailIntervention):
-                    logger.warning(
-                        "guardrail intervened",
-                        extra={
-                            "metadata": metadata,
-                            "stream": stream,
-                            "provider": target.provider,
-                            "model": target.model,
-                            "trace": chunk.trace,
-                        },
-                    )
-                    return CompleteSuccess(response=chunk.response)
-
-                return CompleteSuccess(response=chunk["token"])
-
-            # In case we get no usable content from the provider
-            return Failover(status_code=502)
-
-        except StopAsyncIteration:
-            # If stream ends before yielding tokens or EndOfStream
-            return Failover(status_code=502)
->>>>>>> f5e92d5 (Implemented observability for guardrails)
 
         except ClientError as e:
             err_code = bedrock_error_code(e)
