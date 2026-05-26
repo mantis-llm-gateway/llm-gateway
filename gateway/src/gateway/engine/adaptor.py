@@ -33,11 +33,11 @@ class _AsyncClientContext(Protocol):
 
 
 class ProviderAdaptor:
-    def __init__(self, region_name: str, guardrails_id: str | None, guardrails_version: str | None):
+    def __init__(self, region_name: str, guardrail_id: str | None, guardrail_version: str | None):
         self.session = aioboto3.Session()
         self.region_name = region_name
-        self.guardrails_id = guardrails_id
-        self.guardrails_version = guardrails_version
+        self.guardrail_id = guardrail_id
+        self.guardrail_version = guardrail_version
 
     def _bedrock_client(self) -> _AsyncClientContext:
         return cast(
@@ -47,10 +47,10 @@ class ProviderAdaptor:
 
     async def send_request(self, model_id: str, messages: list[Message]) -> str:
         kwargs: dict = {"modelId": model_id, "messages": messages}
-        if self.guardrails_id is not None:
+        if self.guardrail_id is not None:
             kwargs["guardrailConfig"] = {
-                "guardrailIdentifier": self.guardrails_id,
-                "guardrailVersion": self.guardrails_version,
+                "guardrailIdentifier": self.guardrail_id,
+                "guardrailVersion": self.guardrail_version,
                 "trace": "enabled",
             }
         async with self._bedrock_client() as client:
@@ -59,10 +59,10 @@ class ProviderAdaptor:
 
     async def stream_request(self, model_id: str, messages: list[Message]) -> AsyncIterator[str]:
         kwargs: dict = {"modelId": model_id, "messages": messages}
-        if self.guardrails_id is not None:
+        if self.guardrail_id is not None:
             kwargs["guardrailConfig"] = {
-                "guardrailIdentifier": self.guardrails_id,
-                "guardrailVersion": self.guardrails_version,
+                "guardrailIdentifier": self.guardrail_id,
+                "guardrailVersion": self.guardrail_version,
                 "streamProcessingMode": "sync",
                 "trace": "enabled",
             }
