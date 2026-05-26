@@ -31,7 +31,11 @@ class AppContext:
 async def build_context(settings: Settings, config: Config) -> AppContext:
     redis = _build_redis(settings)
     prompt_cache = await _build_prompt_cache(redis, config, settings)
-    adaptor = ProviderAdaptor(region_name=settings.aws_region)
+    adaptor = ProviderAdaptor(
+        region_name=settings.aws_region,
+        guardrails_id=settings.bedrock_guardrail_id,
+        guardrails_version=settings.bedrock_guardrail_version,
+    )
     return AppContext(
         settings=settings, config=config, redis=redis, adaptor=adaptor, prompt_cache=prompt_cache
     )
