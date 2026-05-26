@@ -13,10 +13,10 @@ def validate_config(config: Config) -> None:
     validate_initial_response_timeout(config)
     validate_cooldown_ttl(config)
     validate_conversation_size_threshold(config)
+    validate_temperature_threshold(config)
     validate_ttl_seconds(config)
     validate_similarity_threshold(config)
     validate_top_k(config)
-    validate_conversation_size_threshold(config)
 
 
 def _validate_non_empty_string(value, field_description: str) -> None:
