@@ -58,6 +58,96 @@ cd gateway
 uv run uvicorn gateway.main:app --reload --app-dir src
 ```
 
+## Infrastructure (Terraform)
+
+The AWS infrastructure lives in `infra/`. Each developer can spin up their own namespaced environment by passing their name as a Terraform variable.
+
+### Prerequisites
+
+- Terraform >= 1.15
+- AWS CLI installed and configured with a `gw` profile
+
+An AWS profile is a named set of credentials stored locally on your machine. To create the `gw` profile:
+
+```sh
+aws configure --profile gw
+```
+
+You will be prompted for:
+- **AWS Access Key ID** — get this from the AWS IAM console
+- **AWS Secret Access Key** — get this from the AWS IAM console
+- **Default region** — enter `us-east-1`
+- **Default output format** — leave blank or enter `json`
+
+To verify the profile is set up correctly:
+
+```sh
+aws configure list --profile gw
+```
+
+### Before your first `terraform apply`
+
+**1. Generate a cache auth token**
+
+ElastiCache requires an AUTH token (password) that you create yourself. Generate one:
+
+```sh
+openssl rand -hex 32
+```
+
+Keep the output — you'll need it in the next step and again when populating Parameter Store.
+
+**2. Provide the token to Terraform**
+
+Either create an `infra/terraform.tfvars` file (make sure it's git-ignored):
+
+```hcl
+cache_auth_token = "your-generated-token"
+```
+
+Or export it as an environment variable:
+
+```sh
+export TF_VAR_cache_auth_token="your-generated-token"
+```
+
+**3. Apply**
+
+```sh
+cd infra
+terraform init
+terraform plan -var="owner=<your-name>"
+terraform apply -var="owner=<your-name>"
+```
+
+### After apply: populate Parameter Store
+
+Terraform automatically populates `cache/endpoint` and `cache/port` from the ElastiCache cluster outputs. The following must be populated manually as they are either secrets or reference resources outside this Terraform stack:
+
+```sh
+aws ssm put-parameter --name /gw-<your-name>/cache/auth-token \
+  --value "<your-generated-token>" --type SecureString
+
+aws ssm put-parameter --name /gw-<your-name>/bedrock/primary-chat-model \
+  --value "us.anthropic.claude-3-5-haiku-20241022-v1:0" --type String
+```
+
+### Tearing down
+
+To destroy all Terraform-managed infrastructure for your environment:
+
+```sh
+cd infra
+terraform destroy -var="owner=<your-name>"
+```
+
+Note: the two manually created Parameter Store entries (`cache/auth-token` and `bedrock/primary-chat-model`) are not managed by Terraform and must be deleted manually if you want a clean slate:
+
+```sh
+aws ssm delete-parameter --name /gw-<your-name>/cache/auth-token
+aws ssm delete-parameter --name /gw-<your-name>/bedrock/primary-chat-model
+```
+
 ## Documentation
 
 Additional documentation can be found in:
