@@ -68,7 +68,7 @@ def make_mock_bedrock_client(provider_adaptor: ProviderAdaptor) -> AsyncMock:
 
 @pytest.fixture
 def provider_adaptor() -> ProviderAdaptor:
-    return ProviderAdaptor(region_name="us-east-1", guardrail_id=None, guardrail_version=None)
+    return ProviderAdaptor(region_name="us-east-1", guardrail_id=None, guardrail_version="1")
 
 
 @pytest.fixture
