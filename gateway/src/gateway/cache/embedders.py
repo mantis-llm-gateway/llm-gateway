@@ -31,9 +31,11 @@ class BedrockEmbedder:
     """
     Embeds text using an AWS Bedrock embedding model.
 
-    Returns float vectors.
+    Returns float vectors. The caller picks the model and output dimensions
+    via the constructor.
 
-    Requires a Bedrock client configured with credentials
+    Requires AWS credentials discoverable by aioboto3
+    and Bedrock access for the configured `embedding_model` in `region_name`.
     """
 
     def __init__(self, region_name: str, embedding_model: str, dimensions: int):
