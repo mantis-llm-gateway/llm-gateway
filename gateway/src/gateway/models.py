@@ -1,4 +1,8 @@
-from pydantic import BaseModel
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+NonEmptyString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class AliasConfig(BaseModel):
@@ -44,3 +48,17 @@ class Config(BaseModel):
     default_model: str
     cooldown_ttl: int
     prompt_cache: PromptCacheConfig
+
+
+class ChatMessageRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: NonEmptyString
+    content: NonEmptyString
+
+
+class ChatCompletionsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    messages: list[ChatMessageRequest] = Field(min_length=1)
+    stream: bool = False
