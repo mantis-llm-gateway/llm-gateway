@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,10 +29,18 @@ class Settings(BaseSettings):
 
     # Bedrock
     bedrock_guardrail_id: str | None = Field(default=None)
-    bedrock_guardrail_version: str = Field(default="1")
+    bedrock_guardrail_version: str | None = Field(default=None)
     bedrock_embedding_model: str = Field(default="amazon.titan-embed-text-v2:0")
     bedrock_embedding_dimensions: int = Field(default=1024)
     bedrock_primary_chat_model: str | None = Field(default=None)
+
+    @model_validator(mode="after")
+    def _guardrail_version_requires_id(self) -> "Settings":
+        if self.bedrock_guardrail_id is not None and self.bedrock_guardrail_version is None:
+            raise ValueError(
+                "bedrock_guardrail_version must be set when bedrock_guardrail_id is set"
+            )
+        return self
 
 
 @lru_cache

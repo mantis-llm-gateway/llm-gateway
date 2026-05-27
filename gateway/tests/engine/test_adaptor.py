@@ -68,7 +68,12 @@ def make_mock_bedrock_client(provider_adaptor: ProviderAdaptor) -> AsyncMock:
 
 @pytest.fixture
 def provider_adaptor() -> ProviderAdaptor:
-    return ProviderAdaptor(region_name="us-east-1")
+    return ProviderAdaptor(region_name="us-east-1", guardrail_id=None, guardrail_version="1")
+
+
+@pytest.fixture
+def provider_adaptor_with_guardrails() -> ProviderAdaptor:
+    return ProviderAdaptor(region_name="us-east-1", guardrail_id="gr-abc123", guardrail_version="2")
 
 
 @pytest.mark.asyncio
@@ -79,6 +84,34 @@ async def test_send_request_success(provider_adaptor: ProviderAdaptor):
     result = await provider_adaptor.send_request(MODEL_ID, MESSAGES)
 
     assert result == "mock response"
+
+
+@pytest.mark.asyncio
+async def test_send_request_omits_guardrail_config_when_not_set(provider_adaptor: ProviderAdaptor):
+    client = make_mock_bedrock_client(provider_adaptor)
+    client.converse = AsyncMock(return_value=make_non_stream_bedrock_response("mock response"))
+
+    await provider_adaptor.send_request(MODEL_ID, MESSAGES)
+
+    _, kwargs = client.converse.call_args
+    assert "guardrailConfig" not in kwargs
+
+
+@pytest.mark.asyncio
+async def test_send_request_includes_guardrail_config(
+    provider_adaptor_with_guardrails: ProviderAdaptor,
+):
+    client = make_mock_bedrock_client(provider_adaptor_with_guardrails)
+    client.converse = AsyncMock(return_value=make_non_stream_bedrock_response("mock response"))
+
+    await provider_adaptor_with_guardrails.send_request(MODEL_ID, MESSAGES)
+
+    _, kwargs = client.converse.call_args
+    assert kwargs["guardrailConfig"] == {
+        "guardrailIdentifier": "gr-abc123",
+        "guardrailVersion": "2",
+        "trace": "enabled",
+    }
 
 
 @pytest.mark.asyncio
@@ -99,6 +132,39 @@ async def test_stream_request_success(provider_adaptor: ProviderAdaptor):
     results = [token async for token in stream]
 
     assert results == ["mock response"]
+
+
+@pytest.mark.asyncio
+async def test_stream_request_omits_guardrail_config_when_not_set(
+    provider_adaptor: ProviderAdaptor,
+):
+    client = make_mock_bedrock_client(provider_adaptor)
+    client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
+
+    stream = await provider_adaptor.stream_request(MODEL_ID, MESSAGES)
+    _ = [token async for token in stream]
+
+    _, kwargs = client.converse_stream.call_args
+    assert "guardrailConfig" not in kwargs
+
+
+@pytest.mark.asyncio
+async def test_stream_request_includes_guardrail_config(
+    provider_adaptor_with_guardrails: ProviderAdaptor,
+):
+    client = make_mock_bedrock_client(provider_adaptor_with_guardrails)
+    client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
+
+    stream = await provider_adaptor_with_guardrails.stream_request(MODEL_ID, MESSAGES)
+    _ = [token async for token in stream]
+
+    _, kwargs = client.converse_stream.call_args
+    assert kwargs["guardrailConfig"] == {
+        "guardrailIdentifier": "gr-abc123",
+        "guardrailVersion": "2",
+        "streamProcessingMode": "sync",
+        "trace": "enabled",
+    }
 
 
 @pytest.mark.asyncio
