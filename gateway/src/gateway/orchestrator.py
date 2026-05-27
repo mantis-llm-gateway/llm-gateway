@@ -81,11 +81,11 @@ async def orchestrate(
         )
 
         match verdict:
-            case CompleteSuccess(response=text):
+            case CompleteSuccess(response=result):
                 if not stream:
                     await ctx.prompt_cache.set(
-                        prompt=cache_prompt,
-                        response=text,
+                        prompt=prompt,
+                        response=result["response"],
                         model=target.model,
                         provider=target.provider,
                         use_semantic=use_semantic_cache,
@@ -99,10 +99,12 @@ async def orchestrate(
                             "stream": stream,
                             "provider": target.provider,
                             "model": target.model,
+                            "input_tokens": result["input_tokens"],
+                            "output_tokens": result["output_tokens"],
                             "latency_ms": latency_ms,
                         },
                     )
-                return JSONResponse(content={"response": text})
+                return JSONResponse(content={"response": result["response"]})
             case StreamingSuccess(chunks=g):
                 return StreamingResponse(g, media_type="text/event-stream")
             case Abort(status_code=code, message=msg):

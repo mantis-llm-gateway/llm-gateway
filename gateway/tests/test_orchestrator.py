@@ -22,7 +22,11 @@ def make_messages(content: str = "hi") -> list[ChatMessageRequest]:
 async def test_complete_success_returns_json_with_response(test_context):
     with patch(
         "gateway.orchestrator.execute_attempt",
-        new=AsyncMock(return_value=CompleteSuccess(response="hello world")),
+        new=AsyncMock(
+            return_value=CompleteSuccess(
+                response={"response": "hello world", "input_tokens": 0, "output_tokens": 0}
+            )
+        ),
     ):
         result = await orchestrate(
             {"task-type": "code_generation"},
@@ -144,7 +148,7 @@ async def test_failover_exhausts_chain_and_returns_last_status(test_context):
 
 @pytest.mark.asyncio
 async def test_cooldown_skips_target(test_context, fake_redis):
-    fake_redis._cooldowns.add("cooldown:anthropic:claude-3")
+    fake_redis._cooldowns.add("gateway:cooldown:anthropic:claude-3")
     with patch(
         "gateway.orchestrator.execute_attempt",
         new=AsyncMock(return_value=Failover(status_code=503)),
@@ -160,8 +164,8 @@ async def test_cooldown_skips_target(test_context, fake_redis):
 
 @pytest.mark.asyncio
 async def test_all_cooled_returns_none(test_context, fake_redis):
-    fake_redis._cooldowns.add("cooldown:anthropic:claude-3")
-    fake_redis._cooldowns.add("cooldown:openai:gpt-4")
+    fake_redis._cooldowns.add("gateway:cooldown:anthropic:claude-3")
+    fake_redis._cooldowns.add("gateway:cooldown:openai:gpt-4")
     with patch(
         "gateway.orchestrator.execute_attempt",
         new=AsyncMock(),

@@ -52,12 +52,9 @@ class PromptCache:
         """
 
         key = self._build_exact_key(prompt=prompt, model=model, provider=provider)
-        print("Trying to do an exact-match cache lookup (`.get`)...")
         hit = await self._exact.get(key)
-        print(f"Result of the exact-match cache lookup: {hit!r}\n")
 
         if hit is None and self._semantic is not None and use_semantic:
-            print("Trying to do a semantic cache lookup (`.get`)...")
             hit = await self._semantic.lookup(prompt=prompt, model=model, provider=provider)
             print(f"Result of the semantic cache lookup: {hit!r}\n")
 
