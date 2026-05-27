@@ -210,6 +210,31 @@ class TestExecuteAttempt:
         assert verdict.status_code == 500
         assert verdict.message == "service unavailable"
 
+    async def test_guardrail_intervention_streaming_logs_warning(
+        self, fake_adaptor, fake_redis, target, caplog
+    ):
+        import logging
+
+        fake_adaptor.guardrail_intervention = True
+        fake_adaptor.stream_response = []
+
+        with caplog.at_level(logging.WARNING, logger="gateway.engine.executor"):
+            verdict = await execute_attempt(
+                target,
+                metadata={"user": "test"},
+                prompt="hi",
+                stream=True,
+                start_time=_start_time(),
+                adaptor=fake_adaptor,
+                redis=fake_redis,
+                target_retries=0,
+                cooldown_ttl=60,
+            )
+            [chunk async for chunk in verdict.chunks]
+
+        assert isinstance(verdict, StreamingSuccess)
+        assert any("guardrail intervened" in r.message for r in caplog.records)
+
     async def test_guardrail_intervention_logs_warning_and_returns_complete_success(
         self, fake_adaptor, fake_redis, target, caplog
     ):

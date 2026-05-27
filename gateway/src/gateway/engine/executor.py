@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 async def _logged_token_strings(
     chunks: AsyncIterator[str],
     *,
+    guardrail_info: dict,
     metadata: dict[str, str],
     stream: bool,
     target: ResolvedTarget,
@@ -41,6 +42,17 @@ async def _logged_token_strings(
         async for token in chunks:
             yield token
         latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+        if guardrail_info:
+            logger.warning(
+                "guardrail intervened",
+                extra={
+                    "metadata": metadata,
+                    "stream": stream,
+                    "provider": target.provider,
+                    "model": target.model,
+                    "trace": guardrail_info["trace"],
+                },
+            )
         logger.info(
             "stream completed",
             extra={
@@ -91,10 +103,11 @@ async def execute_attempt(
     for _ in range(1 + target_retries):
         try:
             if stream:
-                chunks = await adaptor.stream_request(model_id, provider_messages)
+                chunks, guardrail_info = await adaptor.stream_request(model_id, provider_messages)
                 return StreamingSuccess(
                     chunks=_logged_token_strings(
                         chunks,
+                        guardrail_info=guardrail_info,
                         metadata=metadata,
                         stream=stream,
                         target=target,

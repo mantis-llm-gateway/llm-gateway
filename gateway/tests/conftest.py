@@ -59,16 +59,21 @@ class FakeAdaptor:
 
         return {"response": self.response, "input_tokens": 0, "output_tokens": 0}
 
-    async def stream_request(self, model_id: str, messages: list):
+    async def stream_request(self, model_id: str, messages: list) -> tuple:
         self.stream_request_calls.append((model_id, messages))
         if self.error is not None:
             raise self.error
 
+        guardrail_info: dict = {}
+
         async def chunks():
+            if self.guardrail_intervention:
+                guardrail_info["trace"] = {"reason": "test"}
+                return
             for chunk in self.stream_response:
                 yield chunk
 
-        return chunks()
+        return chunks(), guardrail_info
 
 
 @pytest.fixture

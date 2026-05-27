@@ -137,7 +137,7 @@ async def test_stream_request_success(provider_adaptor: ProviderAdaptor):
     client = make_mock_bedrock_client(provider_adaptor)
     client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
 
-    stream = await provider_adaptor.stream_request(MODEL_ID, MESSAGES)
+    stream, _ = await provider_adaptor.stream_request(MODEL_ID, MESSAGES)
     results = [token async for token in stream]
 
     assert results == ["mock response"]
@@ -150,7 +150,7 @@ async def test_stream_request_omits_guardrail_config_when_not_set(
     client = make_mock_bedrock_client(provider_adaptor)
     client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
 
-    stream = await provider_adaptor.stream_request(MODEL_ID, MESSAGES)
+    stream, _ = await provider_adaptor.stream_request(MODEL_ID, MESSAGES)
     _ = [token async for token in stream]
 
     _, kwargs = client.converse_stream.call_args
@@ -164,7 +164,7 @@ async def test_stream_request_includes_guardrail_config(
     client = make_mock_bedrock_client(provider_adaptor_with_guardrails)
     client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
 
-    stream = await provider_adaptor_with_guardrails.stream_request(MODEL_ID, MESSAGES)
+    stream, _ = await provider_adaptor_with_guardrails.stream_request(MODEL_ID, MESSAGES)
     _ = [token async for token in stream]
 
     _, kwargs = client.converse_stream.call_args
