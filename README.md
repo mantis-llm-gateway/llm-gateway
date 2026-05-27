@@ -53,8 +53,16 @@ This repository follows the trunk branching methodology.
 
 ## Running the Gateway
 
+For local gateway development:
+
+1. Copy `gateway/.env.example` to `gateway/.env`.
+2. Use `gateway/.env` for gateway settings only, such as `CACHE_*`, `AWS_REGION`, and `LOG_LEVEL`.
+3. Configure AWS credentials through the standard AWS SDK credential chain, for example with the `gw` profile documented below.
+4. Export `AWS_PROFILE=gw` before starting the service if you want to use that profile explicitly.
+
 ```sh
 cd gateway
+export AWS_PROFILE=gw
 uv run uvicorn gateway.main:app --reload --app-dir src
 ```
 

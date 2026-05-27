@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Infrastructure config loaded from environment.
 
-    Locally: values come from .env via pydantic-settings.
+    Locally: app settings come from .env via pydantic-settings.
     In Fargate: ECS injects env vars from Parameter Store; .env is absent.
     """
 
@@ -32,7 +32,6 @@ class Settings(BaseSettings):
     bedrock_guardrail_version: str | None = Field(default=None)
     bedrock_embedding_model: str = Field(default="amazon.titan-embed-text-v2:0")
     bedrock_embedding_dimensions: int = Field(default=1024)
-    bedrock_primary_chat_model: str | None = Field(default=None)
 
     @model_validator(mode="after")
     def _guardrail_version_requires_id(self) -> "Settings":

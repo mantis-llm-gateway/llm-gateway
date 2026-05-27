@@ -5,12 +5,6 @@ from typing import Any, Protocol, TypedDict, cast
 
 import aioboto3  # type: ignore
 
-# we should not import environment variables from .env in production,
-# so delete this once it is being used in production.
-from dotenv import load_dotenv
-
-load_dotenv()
-
 
 class _Text(TypedDict):
     text: str
