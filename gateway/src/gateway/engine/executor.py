@@ -50,7 +50,7 @@ async def _logged_token_strings(
                 "latency_ms": latency_ms,
             },
         )
-    except Exception as e:
+    except BaseException as e:
         latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
         logger.error(
             "mid-stream error",
@@ -63,6 +63,7 @@ async def _logged_token_strings(
                 "error": str(e),
             },
         )
+        raise
 
 
 async def execute_attempt(
@@ -111,7 +112,9 @@ async def execute_attempt(
                         "trace": result.trace,
                     },
                 )
-                return CompleteSuccess(response=result.response)
+                return CompleteSuccess(
+                    response={"response": result.response, "input_tokens": 0, "output_tokens": 0}
+                )
             return CompleteSuccess(response=result)
 
         except ClientError as e:

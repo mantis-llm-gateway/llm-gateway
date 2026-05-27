@@ -57,7 +57,9 @@ class ProviderAdaptor:
             self.session.client("bedrock-runtime", region_name=self.region_name),
         )
 
-    async def send_request(self, model_id: str, messages: list[Message]) -> str | GuardrailIntervention:
+    async def send_request(
+        self, model_id: str, messages: list[Message]
+    ) -> dict | GuardrailIntervention:
         kwargs: dict = {"modelId": model_id, "messages": messages}
         if self.guardrail_id is not None:
             kwargs["guardrailConfig"] = {
@@ -71,7 +73,12 @@ class ProviderAdaptor:
                 blocked_text = response["output"]["message"]["content"][0]["text"] or ""
                 trace = response.get("trace", {}).get("guardrail", {})
                 return GuardrailIntervention(response=blocked_text, trace=trace)
-            return response["output"]["message"]["content"][0]["text"] or ""
+
+            return {
+                "response": response["output"]["message"]["content"][0]["text"] or "",
+                "input_tokens": response["usage"]["inputTokens"],
+                "output_tokens": response["usage"]["outputTokens"],
+            }
 
     async def stream_request(self, model_id: str, messages: list[Message]) -> AsyncIterator[str]:
         kwargs: dict = {"modelId": model_id, "messages": messages}

@@ -53,7 +53,7 @@ class TestExecuteAttempt:
         )
 
         assert isinstance(verdict, CompleteSuccess)
-        assert verdict.response == "hello"
+        assert verdict.response == {"response": "hello", "input_tokens": 0, "output_tokens": 0}
 
     async def test_stream_success_returns_streaming_success(self, fake_adaptor, fake_redis, target):
         fake_adaptor.stream_response = ["he", "llo"]
@@ -210,5 +210,9 @@ class TestExecuteAttempt:
             )
 
         assert isinstance(verdict, CompleteSuccess)
-        assert verdict.response == "blocked by guardrail"
+        assert verdict.response == {
+            "response": "blocked by guardrail",
+            "input_tokens": 0,
+            "output_tokens": 0,
+        }
         assert any("guardrail intervened" in r.message for r in caplog.records)

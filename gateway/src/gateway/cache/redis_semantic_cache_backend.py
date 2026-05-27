@@ -1,3 +1,4 @@
+import logging
 import string
 import uuid
 from typing import Any
@@ -7,6 +8,8 @@ from redis.asyncio import Redis
 from redis.exceptions import ResponseError
 
 from gateway.cache.embedders import Embedder
+
+logger = logging.getLogger(__name__)
 
 
 class RedisSemanticCacheBackend:
@@ -117,11 +120,13 @@ class RedisSemanticCacheBackend:
         matches = self._parse_search_results(result)
 
         if len(matches) > 0 and matches[0]["similarity"] >= self._similarity_threshold:
-            # TODO: think about logging the other matches for threshold tuning?
-            print(f"Semantic cache hit with similarity: {matches[0]['similarity']}")
+            logger.info(
+                f"semantic cache hit with similarity: {matches[0]['similarity']}",
+                extra={"matches": matches},
+            )
             return matches[0]["payload"]
         else:
-            print("Semantic cache lookup miss")
+            logger.info("semantic cache lookup miss")
             return None
 
     async def store(
@@ -140,11 +145,6 @@ class RedisSemanticCacheBackend:
         sanitized_model = self._sanitize_tag(model)
         sanitized_provider = self._sanitize_tag(provider)
 
-        # TODO: add logging for production logs
-        # (requires logging config setup at project entry point)
-        # logging.info(f"Attempting to store key {key}...")
-        print("We're trying to store (`.set`) in the semantic cache now...")
-
         # Stored as a Redis HASH so vector + response + tags stay co-located.
         await self._redis.execute_command(
             "HSET",
@@ -159,15 +159,12 @@ class RedisSemanticCacheBackend:
             sanitized_provider,
         )
 
-        print(f"Attempting to store key {key[:25]}... with TTL of {ttl_seconds} seconds")
-
         await self._redis.expire(key, ttl_seconds)
 
-        # TODO: add logging for production logs
-        # (requires logging config setup at project entry point)
-        # logging.info(f"Stored key {key} with result: {result}")
-
-        print(f"Stored key {key[:25]}... with TTL of {ttl_seconds} seconds\n")
+        logger.info(
+            "set key in semantic cache",
+            extra={"key": key[:25], "cached response": response, "ttl": ttl_seconds},
+        )
 
     @staticmethod
     def _encode_vector(embedding: list[float]) -> bytes:

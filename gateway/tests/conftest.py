@@ -49,7 +49,7 @@ class FakeAdaptor:
         self.error: Exception | None = None
         self.guardrail_intervention: bool = False
 
-    async def send_request(self, model_id: str, messages: list) -> str | GuardrailIntervention:
+    async def send_request(self, model_id: str, messages: list) -> dict | GuardrailIntervention:
         self.send_request_calls.append((model_id, messages))
         if self.error is not None:
             raise self.error
@@ -57,7 +57,7 @@ class FakeAdaptor:
         if self.guardrail_intervention:
             return GuardrailIntervention(response="blocked by guardrail", trace={"reason": "test"})
 
-        return self.response
+        return {"response": self.response, "input_tokens": 0, "output_tokens": 0}
 
     async def stream_request(self, model_id: str, messages: list):
         self.stream_request_calls.append((model_id, messages))

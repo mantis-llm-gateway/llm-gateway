@@ -1,4 +1,8 @@
+import logging
+
 from redis.asyncio import Redis
+
+logger = logging.getLogger(__name__)
 
 
 class RedisExactCacheBackend:
@@ -8,10 +12,20 @@ class RedisExactCacheBackend:
         self._redis = redis_client
 
     async def get(self, key: str) -> str | None:
-        return await self._redis.get(key)
+        result = await self._redis.get(key)
+
+        if result:
+            logger.info("exact cache hit", extra={"key": key})
+        else:
+            logger.info("exact cache lookup miss")
+
+        return result
 
     async def set(self, key: str, value: str, ttl_seconds: int) -> None:
-        print("We're trying to store (`.set`) in the  exact-match cache now...")
 
         await self._redis.set(key, value, ex=ttl_seconds)
-        print(f"Attempting to store key {key[:25]}... with TTL of {ttl_seconds} seconds")
+
+        logger.info(
+            "set key in exact cache",
+            extra={"key": key, "cached response": value, "ttl": ttl_seconds},
+        )
