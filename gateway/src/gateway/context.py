@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 
-import boto3
 from redis.asyncio import Redis
 
 from gateway.cache.embedders import BedrockEmbedder
@@ -74,11 +73,9 @@ async def _build_prompt_cache(redis: Redis, config: Config, settings: Settings) 
     )
 
 
-# TODO: swap boto3 for aioboto3 (async BedrockEmbedder, await in semantic backend etc)
 def _build_embedder(settings: Settings) -> BedrockEmbedder:
-    bedrock_client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
     return BedrockEmbedder(
-        client=bedrock_client,
+        region_name=settings.aws_region,
         embedding_model=settings.bedrock_embedding_model,
         dimensions=settings.bedrock_embedding_dimensions,
     )
