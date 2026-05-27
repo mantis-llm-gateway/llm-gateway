@@ -48,11 +48,16 @@ Synchronize the environment and install dependencies with:
 uv sync
 ```
 
+For local development, copy `.env.example` to `.env` and use it for gateway settings only.
+Keep AWS credentials out of `.env`; configure them through the standard AWS SDK credential chain instead,
+for example with `aws configure --profile gw` and `export AWS_PROFILE=gw`.
+
 ## Running the Service
 
 Start the development server:
 
 ```sh
+export AWS_PROFILE=gw
 uv run uvicorn gateway.main:app --reload
 ```
 
