@@ -3,11 +3,12 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import TypeAdapter, ValidationError
 
 from gateway.context import AppContext, build_context, shutdown_context
-from gateway.models import Config
+from gateway.models import ChatCompletionsRequest, Config
 from gateway.orchestrator import orchestrate
 from gateway.settings import get_settings
 from gateway.validation import validate_config
@@ -36,10 +37,21 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+_metadata_adapter = TypeAdapter(dict[str, str])
 
 
 def get_context(request: Request) -> AppContext:
     return request.app.state.context
+
+
+def parse_metadata_header(metadata: str | None = Header(default=None)) -> dict[str, str]:
+    try:
+        return _metadata_adapter.validate_python(json.loads(metadata or "{}"))
+    except (json.JSONDecodeError, ValidationError) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="metadata header must be a JSON object with string keys and values",
+        ) from exc
 
 
 @app.get("/health")
@@ -49,12 +61,9 @@ async def health() -> dict[str, str]:
 
 @app.post("/v1/chat/completions", response_model=None)
 async def chat_completions(
-    request: Request,
+    body: ChatCompletionsRequest,
+    metadata: dict[str, str] = Depends(parse_metadata_header),
     ctx: AppContext = Depends(get_context),
 ) -> JSONResponse | StreamingResponse | None:
-    metadata: dict[str, str] = json.loads(request.headers.get("metadata") or "{}")
-    # Assumes well formed request body - TODO: wrape in Pydantic model to validate
-    body = await request.json()
-    prompt = body["messages"][-1]["content"]
-    stream = body.get("stream", False)
-    return await orchestrate(metadata, prompt, stream, ctx)
+    prompt = body.messages[-1].content
+    return await orchestrate(metadata, prompt, body.stream, ctx)
