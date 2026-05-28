@@ -16,7 +16,6 @@ class SemanticCacheBackend(Protocol):
 
 
 class PromptCache:
-    # TODO: Set maxmemory + eviction policy (e.g. allkeys-lfu) in Redis/ElastiCache config
     """Two-tier prompt cache: exact-match with optional semantic fallback.
 
     Callers pass `prompt`, `model`, `provider` to `get`/`set`; key derivation is internal.
@@ -44,8 +43,6 @@ class PromptCache:
         self._semantic = semantic_backend
         self._default_ttl_seconds = default_ttl_seconds
 
-    # TODO: Consider returning additional related info
-    # (eg. model, tokens, timestamp, cache hit/miss boolean etc)
     async def get(self, *, prompt: str, model: str, provider: str) -> str | None:
         """
         Return cached response, or None on miss.
@@ -64,9 +61,6 @@ class PromptCache:
 
         return hit
 
-    # TODO: Think about adding response metadata to cache
-    # (e.g. model, tokens, timestamp etc) for cache observability
-    # Cached values are raw response strings for now.
     async def set(
         self,
         *,

@@ -4,6 +4,9 @@ from types import TracebackType
 from typing import Any, Protocol, cast
 
 import aioboto3
+from botocore.exceptions import BotoCoreError, ClientError
+
+logger = logging.getLogger(__name__)
 
 
 class _AsyncClientContext(Protocol):
@@ -24,7 +27,7 @@ class Embedder(Protocol):
 
     dimensions: int
 
-    async def embed(self, text: str) -> list[float]: ...
+    async def embed(self, text: str) -> list[float] | None: ...
 
 
 class BedrockEmbedder:
@@ -50,23 +53,33 @@ class BedrockEmbedder:
             self.session.client("bedrock-runtime", region_name=self.region_name),
         )
 
-    async def embed(self, text: str) -> list[float]:
+    async def embed(self, text: str) -> list[float] | None:
         # Request parameters for Titan V2
         body = json.dumps({"inputText": text, "dimensions": self.dimensions, "normalize": True})
 
-        async with self._bedrock_client() as client:
-            logging.info("Attempt to get embedding...")
-            response = await client.invoke_model(
-                body=body,
-                modelId=self._embedding_model,
-                accept="application/json",
-                contentType="application/json",
+        try:
+            async with self._bedrock_client() as client:
+                response = await client.invoke_model(
+                    body=body,
+                    modelId=self._embedding_model,
+                    accept="application/json",
+                    contentType="application/json",
+                )
+
+                response_body = await response["body"].read()
+
+            embedding = json.loads(response_body).get("embedding")
+
+            # TODO: observability logs (see TEA-87)
+            print(f"Embedding (first 5 values): {embedding[:5]}")
+
+        except (ClientError, BotoCoreError) as e:
+            embedding = None
+            logger.warning(
+                "bedrock embedding call failed: model=%s error_type=%s error=%s",
+                self._embedding_model,
+                type(e).__name__,
+                e,
             )
 
-            response_body = await response["body"].read()
-
-        embedding = json.loads(response_body).get("embedding")
-
-        # TODO: observability logs (see TEA-87)
-        print(f"Embedding (first 5 values): {embedding[:5]}")
         return embedding

@@ -12,7 +12,7 @@ class FakeEmbedder:
 
     dimensions: int = 1024
 
-    async def embed(self, text: str) -> list[float]:
+    async def embed(self, text: str) -> list[float] | None:
         # Deterministic: same text → same vector.
         # Hash-based so different texts get different vectors.
         import hashlib
