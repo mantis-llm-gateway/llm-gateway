@@ -78,8 +78,7 @@ class RedisSemanticCacheBackend:
         a top-k cosine-similarity search. Returns the top match's payload if its
         similarity meets `self._similarity_threshold`; otherwise None.
         """
-        # TODO: check if this needs to be async
-        embedding = self._embedder.embed(prompt)
+        embedding = await self._embedder.embed(prompt)
 
         # Filter tags must match how values were stored, so sanitize on store and lookup
         sanitized_model = self._sanitize_tag(model)
@@ -133,16 +132,14 @@ class RedisSemanticCacheBackend:
         writes a Redis HASH with the vector, response payload, and sanitized
         provider/model tags.
         """
-        embedding = self._embedder.embed(prompt)
+        embedding = await self._embedder.embed(prompt)
         key_id = uuid.uuid4().hex
         key = f"{self.PREFIX}{key_id}"
 
         sanitized_model = self._sanitize_tag(model)
         sanitized_provider = self._sanitize_tag(provider)
 
-        # TODO: add logging for production logs
-        # (requires logging config setup at project entry point)
-        # logging.info(f"Attempting to store key {key}...")
+        # TODO: observability logs (see TEA-87)
         print("We're trying to store (`.set`) in the semantic cache now...")
 
         # Stored as a Redis HASH so vector + response + tags stay co-located.
@@ -159,14 +156,9 @@ class RedisSemanticCacheBackend:
             sanitized_provider,
         )
 
+        # TODO: observability logs (see TEA-87)
         print(f"Attempting to store key {key[:25]}... with TTL of {ttl_seconds} seconds")
-
         await self._redis.expire(key, ttl_seconds)
-
-        # TODO: add logging for production logs
-        # (requires logging config setup at project entry point)
-        # logging.info(f"Stored key {key} with result: {result}")
-
         print(f"Stored key {key[:25]}... with TTL of {ttl_seconds} seconds\n")
 
     @staticmethod
