@@ -4,6 +4,7 @@ import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from botocore.exceptions import BotoCoreError, ClientError
 
 from gateway.cache.embedders import BedrockEmbedder
 
@@ -87,3 +88,24 @@ async def test_embed_sends_expected_request_to_bedrock(embedder):
     assert kwargs["modelId"] == EXAMPLE_MODEL_ID
     body = json.loads(kwargs["body"])
     assert body == {"inputText": "hello", "dimensions": EXAMPLE_DIMENSIONS, "normalize": True}
+
+
+@pytest.mark.asyncio
+async def test_embed_returns_none_on_client_error(embedder):
+    client = make_mock_bedrock_client(embedder)
+    client.invoke_model = AsyncMock(
+        side_effect=ClientError(
+            error_response={"Error": {"Code": "ThrottlingException", "Message": "slow down"}},
+            operation_name="InvokeModel",
+        )
+    )
+    result = await embedder.embed("hello")
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_embed_returns_none_on_botocore_error(embedder):
+    client = make_mock_bedrock_client(embedder)
+    client.invoke_model = AsyncMock(side_effect=BotoCoreError())
+    result = await embedder.embed("hello")
+    assert result is None

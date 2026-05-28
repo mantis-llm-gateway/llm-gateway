@@ -1,12 +1,15 @@
+import logging
 import string
 import uuid
 from typing import Any
 
 import numpy as np
 from redis.asyncio import Redis
-from redis.exceptions import ResponseError
+from redis.exceptions import RedisError, ResponseError
 
 from gateway.cache.embedders import Embedder
+
+logger = logging.getLogger(__name__)
 
 
 class RedisSemanticCacheBackend:
@@ -16,9 +19,6 @@ class RedisSemanticCacheBackend:
     tags for strict filtering at lookup. Lookups return the cached response only
     when the top match clears the similarity threshold.
     """
-
-    # TODO: verify FT.SEARCH, FT.CREATE syntax against ElastiCache w/ Valkey before prod deploy.
-    # Will be mostly the same, but minor syntax differences may exist
 
     PREFIX = "prompt:semantic:"
     REDIS_INDEX_NAME = "idx:semantic"
@@ -67,8 +67,9 @@ class RedisSemanticCacheBackend:
                 "TAG",
             )
         except ResponseError as e:
-            # TODO: this wording may change. Make more robust
-            if "Index already exists" not in str(e):
+            # Match both Redis OSS ("Index already exists") and Valkey
+            # ("Index {name} in database {number} already exists.") wording.
+            if "already exists" not in str(e).lower():
                 raise
 
     async def lookup(self, prompt: str, model: str, provider: str) -> str | None:
@@ -79,6 +80,9 @@ class RedisSemanticCacheBackend:
         similarity meets `self._similarity_threshold`; otherwise None.
         """
         embedding = await self._embedder.embed(prompt)
+
+        if embedding is None:
+            return None
 
         # Filter tags must match how values were stored, so sanitize on store and lookup
         sanitized_model = self._sanitize_tag(model)
@@ -95,33 +99,45 @@ class RedisSemanticCacheBackend:
         # PARAMS binds the encoded vector to $vec in the query
         # DIALECT 2 enables the `=>[KNN ...]` syntax used above
         # Response is limited to 2 fields: "payload" and "distance" (lower = more similar)
-        result = await self._redis.execute_command(
-            "FT.SEARCH",
-            self.REDIS_INDEX_NAME,
-            query,
-            "PARAMS",
-            "2",
-            "vec",
-            self._encode_vector(embedding),
-            "RETURN",
-            "2",
-            "payload",
-            "distance",
-            "SORTBY",
-            "distance",
-            "DIALECT",
-            "2",
-        )
+        try:
+            result = await self._redis.execute_command(
+                "FT.SEARCH",
+                self.REDIS_INDEX_NAME,
+                query,
+                "PARAMS",
+                "2",
+                "vec",
+                self._encode_vector(embedding),
+                "RETURN",
+                "2",
+                "payload",
+                "distance",
+                "DIALECT",
+                "2",
+            )
 
-        matches = self._parse_search_results(result)
+            matches = self._parse_search_results(result)
 
-        if len(matches) > 0 and matches[0]["similarity"] >= self._similarity_threshold:
-            # TODO: think about logging the other matches for threshold tuning?
-            print(f"Semantic cache hit with similarity: {matches[0]['similarity']}")
-            return matches[0]["payload"]
-        else:
-            print("Semantic cache lookup miss")
+        # TODO: observability (see TEA-87)
+        except RedisError as e:
+            logger.warning(
+                "redis semantic cache lookup failed: model=%s provider=%s error_type=%s error=%s",
+                sanitized_model,
+                sanitized_provider,
+                type(e).__name__,
+                e,
+            )
             return None
+
+        if len(matches) == 0:
+            return None
+
+        best_match = max(matches, key=lambda m: m["similarity"])
+
+        if best_match["similarity"] >= self._similarity_threshold:
+            return best_match["payload"]
+
+        return None
 
     async def store(
         self, prompt: str, response: str, model: str, provider: str, ttl_seconds: int
@@ -133,33 +149,42 @@ class RedisSemanticCacheBackend:
         provider/model tags.
         """
         embedding = await self._embedder.embed(prompt)
+
+        if embedding is None:
+            return None
+
         key_id = uuid.uuid4().hex
         key = f"{self.PREFIX}{key_id}"
 
         sanitized_model = self._sanitize_tag(model)
         sanitized_provider = self._sanitize_tag(provider)
 
-        # TODO: observability logs (see TEA-87)
-        print("We're trying to store (`.set`) in the semantic cache now...")
-
         # Stored as a Redis HASH so vector + response + tags stay co-located.
-        await self._redis.execute_command(
-            "HSET",
-            key,
-            "vector",
-            self._encode_vector(embedding),
-            "payload",
-            response,
-            "model",
-            sanitized_model,
-            "provider",
-            sanitized_provider,
-        )
+        try:
+            await self._redis.execute_command(
+                "HSET",
+                key,
+                "vector",
+                self._encode_vector(embedding),
+                "payload",
+                response,
+                "model",
+                sanitized_model,
+                "provider",
+                sanitized_provider,
+            )
 
-        # TODO: observability logs (see TEA-87)
-        print(f"Attempting to store key {key[:25]}... with TTL of {ttl_seconds} seconds")
-        await self._redis.expire(key, ttl_seconds)
-        print(f"Stored key {key[:25]}... with TTL of {ttl_seconds} seconds\n")
+            await self._redis.expire(key, ttl_seconds)
+
+        # TODO: observability (see TEA-87)
+        except RedisError as e:
+            logger.warning(
+                "redis semantic cache store failed: model=%s provider=%s error_type=%s error=%s",
+                sanitized_model,
+                sanitized_provider,
+                type(e).__name__,
+                e,
+            )
 
     @staticmethod
     def _encode_vector(embedding: list[float]) -> bytes:
