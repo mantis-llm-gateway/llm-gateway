@@ -112,9 +112,8 @@ class RedisSemanticCacheBackend:
                 "2",
                 "payload",
                 "distance",
-                "LIMIT",
-                "0",
-                str(self._top_k),
+                "SORTBY",
+                "distance",
                 "DIALECT",
                 "2",
             )
@@ -135,13 +134,9 @@ class RedisSemanticCacheBackend:
             logger.info("semantic cache lookup miss")
             return None
 
-        best_match = max(matches, key=lambda m: m["similarity"])
-
-        if best_match["similarity"] >= self._similarity_threshold:
-            logger.info(
-                "semantic cache hit with similarity: %s", best_match["similarity"]
-            )
-            return best_match["payload"]
+        if matches[0]["similarity"] >= self._similarity_threshold:
+            logger.info("semantic cache hit")
+            return matches[0]["payload"]
 
         logger.info("semantic cache lookup miss")
         return None

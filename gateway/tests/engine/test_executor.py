@@ -230,10 +230,36 @@ class TestExecuteAttempt:
                 target_retries=0,
                 cooldown_ttl=60,
             )
+            assert isinstance(verdict, StreamingSuccess)
             [chunk async for chunk in verdict.chunks]
 
-        assert isinstance(verdict, StreamingSuccess)
         assert any("guardrail intervened" in r.message for r in caplog.records)
+
+    async def test_stream_completed_logs_token_counts(
+        self, fake_adaptor, fake_redis, target, caplog
+    ):
+        import logging
+
+        fake_adaptor.stream_response = ["hello"]
+
+        with caplog.at_level(logging.INFO, logger="gateway.engine.executor"):
+            verdict = await execute_attempt(
+                target,
+                metadata={},
+                prompt="hi",
+                stream=True,
+                start_time=_start_time(),
+                adaptor=fake_adaptor,
+                redis=fake_redis,
+                target_retries=0,
+                cooldown_ttl=60,
+            )
+            assert isinstance(verdict, StreamingSuccess)
+            [chunk async for chunk in verdict.chunks]
+
+        completed = next(r for r in caplog.records if r.message == "stream completed")
+        assert completed.input_tokens == 5
+        assert completed.output_tokens == 10
 
     async def test_guardrail_intervention_logs_warning_and_returns_complete_success(
         self, fake_adaptor, fake_redis, target, caplog

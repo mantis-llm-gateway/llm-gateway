@@ -9,7 +9,7 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import TypeAdapter, ValidationError
-from pythonjsonlogger.jsonlogger import JsonFormatter
+from pythonjsonlogger.json import JsonFormatter
 
 from gateway.context import AppContext, build_context, shutdown_context
 from gateway.models import ChatCompletionsRequest, Config
@@ -56,7 +56,8 @@ _metadata_adapter = TypeAdapter(dict[str, str])
 
 @app.middleware("http")
 async def set_request_id(request: Request, call_next):
-    request_id_var.set(str(uuid4()))
+    request_id = request.headers.get("x-amzn-trace-id") or str(uuid4())
+    request_id_var.set(request_id)
     return await call_next(request)
 
 

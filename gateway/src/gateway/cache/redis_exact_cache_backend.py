@@ -41,7 +41,4 @@ class RedisExactCacheBackend:
             )
             return
 
-        logger.info(
-            "set key in exact cache",
-            extra={"key": key, "ttl": ttl_seconds},
-        )
+        logger.info("set key in exact cache", extra={"key": key, "ttl": ttl_seconds})

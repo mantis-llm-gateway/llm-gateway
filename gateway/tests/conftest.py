@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 
 from gateway.cache.prompt_cache import PromptCache
 from gateway.context import AppContext
-from gateway.engine import GuardrailIntervention
+from gateway.engine import GuardrailIntervention, StreamResult
 from gateway.main import app
 from gateway.models import (
     AliasConfig,
@@ -59,21 +59,24 @@ class FakeAdaptor:
 
         return {"response": self.response, "input_tokens": 0, "output_tokens": 0}
 
-    async def stream_request(self, model_id: str, messages: list) -> tuple:
+    async def stream_request(self, model_id: str, messages: list) -> StreamResult:
         self.stream_request_calls.append((model_id, messages))
         if self.error is not None:
             raise self.error
 
-        guardrail_info: dict = {}
+        result = StreamResult()
 
         async def chunks():
             if self.guardrail_intervention:
-                guardrail_info["trace"] = {"reason": "test"}
+                result._guardrail_info["trace"] = {"reason": "test"}
                 return
             for chunk in self.stream_response:
                 yield chunk
+            result._usage_info["input_tokens"] = 5
+            result._usage_info["output_tokens"] = 10
 
-        return chunks(), guardrail_info
+        result._chunks = chunks()
+        return result
 
 
 @pytest.fixture

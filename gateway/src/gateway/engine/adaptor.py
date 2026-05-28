@@ -33,6 +33,35 @@ class GuardrailIntervention:
     trace: dict
 
 
+class StreamResult:
+    def __init__(self) -> None:
+        self._exhausted = False
+        self._guardrail_info: dict = {}
+        self._usage_info: dict = {}
+        self._chunks: AsyncIterator[str] | None = None
+
+    def __aiter__(self) -> AsyncIterator[str]:
+        return self._iterate()
+
+    async def _iterate(self) -> AsyncIterator[str]:
+        assert self._chunks is not None
+        async for token in self._chunks:
+            yield token
+        self._exhausted = True
+
+    @property
+    def guardrail_info(self) -> dict:
+        if not self._exhausted:
+            raise RuntimeError("stream not yet exhausted")
+        return self._guardrail_info
+
+    @property
+    def usage_info(self) -> dict:
+        if not self._exhausted:
+            raise RuntimeError("stream not yet exhausted")
+        return self._usage_info
+
+
 class ProviderAdaptor:
     def __init__(
         self,
@@ -74,9 +103,7 @@ class ProviderAdaptor:
                 "output_tokens": response["usage"]["outputTokens"],
             }
 
-    async def stream_request(
-        self, model_id: str, messages: list[Message]
-    ) -> tuple[AsyncIterator[str], dict]:
+    async def stream_request(self, model_id: str, messages: list[Message]) -> StreamResult:
         kwargs: dict = {"modelId": model_id, "messages": messages}
         if self.guardrail_id is not None:
             kwargs["guardrailConfig"] = {
@@ -95,11 +122,13 @@ class ProviderAdaptor:
             await client_context.__aexit__(*sys.exc_info())
             raise
 
-        guardrail_info: dict = {}
+        result = StreamResult()
 
         async def chunks() -> AsyncIterator[str]:
             stop_reason = None
             guardrail_trace: dict = {}
+            input_tokens = 0
+            output_tokens = 0
             try:
                 async for event in response["stream"]:
                     if "messageStop" in event:
@@ -108,6 +137,9 @@ class ProviderAdaptor:
                         guardrail_trace = (
                             event.get("metadata", {}).get("trace", {}).get("guardrail", {})
                         )
+                        usage = event.get("metadata", {}).get("usage", {})
+                        input_tokens = usage.get("inputTokens", 0)
+                        output_tokens = usage.get("outputTokens", 0)
                     elif "contentBlockDelta" in event:
                         delta = event["contentBlockDelta"]["delta"]
                         if "text" in delta:
@@ -117,7 +149,10 @@ class ProviderAdaptor:
                 raise
             else:
                 if stop_reason == "guardrail_intervened":
-                    guardrail_info["trace"] = guardrail_trace
+                    result._guardrail_info["trace"] = guardrail_trace
+                result._usage_info["input_tokens"] = input_tokens
+                result._usage_info["output_tokens"] = output_tokens
                 await client_context.__aexit__(None, None, None)
 
-        return chunks(), guardrail_info
+        result._chunks = chunks()
+        return result

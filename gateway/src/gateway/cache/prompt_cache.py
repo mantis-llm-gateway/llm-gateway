@@ -56,7 +56,6 @@ class PromptCache:
 
         if hit is None and self._semantic is not None and use_semantic:
             hit = await self._semantic.lookup(prompt=prompt, model=model, provider=provider)
-            print(f"Result of the semantic cache lookup: {hit!r}\n")
 
         return hit
 
