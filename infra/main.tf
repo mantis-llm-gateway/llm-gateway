@@ -608,6 +608,11 @@ resource "aws_elasticache_parameter_group" "cache" {
     value = "50"
   }
 
+  parameter {
+    name  = "maxmemory-policy"
+    value = "allkeys-lfu"
+  }
+
   tags = {
     Project = "llm_gateway"
   }
