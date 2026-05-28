@@ -65,5 +65,4 @@ async def chat_completions(
     metadata: dict[str, str] = Depends(parse_metadata_header),
     ctx: AppContext = Depends(get_context),
 ) -> JSONResponse | StreamingResponse | None:
-    prompt = body.messages[-1].content
-    return await orchestrate(metadata, prompt, body.stream, ctx)
+    return await orchestrate(metadata, body.messages, body.stream, ctx)

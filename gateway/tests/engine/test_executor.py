@@ -3,6 +3,7 @@ from botocore.exceptions import ClientError
 
 from gateway.engine.executor import execute_attempt
 from gateway.engine.verdict import Abort, CompleteSuccess, Failover, StreamingSuccess
+from gateway.models import ChatMessageRequest
 from gateway.routing import ResolvedTarget
 
 
@@ -22,6 +23,10 @@ def make_bedrock_error(code: str, http: int) -> ClientError:
     )
 
 
+def make_messages(content: str = "hi") -> list[ChatMessageRequest]:
+    return [ChatMessageRequest(role="user", content=content)]
+
+
 @pytest.fixture
 def target() -> ResolvedTarget:
     return ResolvedTarget(provider="bedrock", model="claude-opus-4-7")
@@ -36,7 +41,7 @@ class TestExecuteAttempt:
 
         verdict = await execute_attempt(
             target,
-            prompt="hi",
+            messages=make_messages(),
             stream=False,
             adaptor=fake_adaptor,
             redis=fake_redis,
@@ -52,7 +57,7 @@ class TestExecuteAttempt:
 
         verdict = await execute_attempt(
             target,
-            prompt="hi",
+            messages=make_messages(),
             stream=True,
             adaptor=fake_adaptor,
             redis=fake_redis,
@@ -68,7 +73,7 @@ class TestExecuteAttempt:
 
         verdict = await execute_attempt(
             target,
-            prompt="hi",
+            messages=make_messages(),
             stream=True,
             adaptor=fake_adaptor,
             redis=fake_redis,
@@ -84,7 +89,11 @@ class TestExecuteAttempt:
 
         await execute_attempt(
             target,
-            prompt="say hi",
+            messages=[
+                ChatMessageRequest(role="user", content="say hi"),
+                ChatMessageRequest(role="assistant", content="hi"),
+                ChatMessageRequest(role="user", content="say it again"),
+            ],
             stream=False,
             adaptor=fake_adaptor,
             redis=fake_redis,
@@ -95,14 +104,18 @@ class TestExecuteAttempt:
         model_id, messages = fake_adaptor.send_request_calls[0]
 
         assert model_id == "claude-opus-4-7"
-        assert messages == [{"role": "user", "content": [{"text": "say hi"}]}]
+        assert messages == [
+            {"role": "user", "content": [{"text": "say hi"}]},
+            {"role": "assistant", "content": [{"text": "hi"}]},
+            {"role": "user", "content": [{"text": "say it again"}]},
+        ]
 
     async def test_throttling_sets_cooldown_and_failovers(self, fake_adaptor, fake_redis, target):
         fake_adaptor.error = make_bedrock_error("ThrottlingException", 429)
 
         verdict = await execute_attempt(
             target,
-            prompt="hi",
+            messages=make_messages(),
             stream=False,
             adaptor=fake_adaptor,
             redis=fake_redis,
@@ -121,7 +134,7 @@ class TestExecuteAttempt:
 
         verdict = await execute_attempt(
             target,
-            prompt="hi",
+            messages=make_messages(),
             stream=False,
             adaptor=fake_adaptor,
             redis=fake_redis,
@@ -138,7 +151,7 @@ class TestExecuteAttempt:
 
         verdict = await execute_attempt(
             target,
-            prompt="hi",
+            messages=make_messages(),
             stream=False,
             adaptor=fake_adaptor,
             redis=fake_redis,
@@ -155,7 +168,7 @@ class TestExecuteAttempt:
 
         verdict = await execute_attempt(
             target,
-            prompt="hi",
+            messages=make_messages(),
             stream=False,
             adaptor=fake_adaptor,
             redis=fake_redis,

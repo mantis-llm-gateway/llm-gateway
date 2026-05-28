@@ -12,6 +12,7 @@ from gateway.engine.errors import (
     classify_bedrock_error,
 )
 from gateway.engine.verdict import Abort, CompleteSuccess, Failover, StreamingSuccess, Verdict
+from gateway.models import ChatMessageRequest
 from gateway.routing import ResolvedTarget
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 async def execute_attempt(
     target: ResolvedTarget,
     *,
-    prompt: str,
+    messages: list[ChatMessageRequest],
     stream: bool,
     adaptor: ProviderAdaptor,
     redis: Redis,
@@ -32,16 +33,16 @@ async def execute_attempt(
     Returns a typed verdict that the orchestrator translates into HTTP behavior.
     """
     model_id = target.model
-    messages: list[Message] = [{"role": "user", "content": [{"text": prompt}]}]
+    provider_messages = _to_provider_messages(messages)
 
     last_status: int | None = None
     for _ in range(1 + target_retries):
         try:
             if stream:
-                chunks = await adaptor.stream_request(model_id, messages)
+                chunks = await adaptor.stream_request(model_id, provider_messages)
                 return StreamingSuccess(chunks=chunks)
 
-            text = await adaptor.send_request(model_id, messages)
+            text = await adaptor.send_request(model_id, provider_messages)
             return CompleteSuccess(response=text)
 
         except ClientError as e:
@@ -71,3 +72,7 @@ async def execute_attempt(
                     return Abort(status_code=status, message=err_msg or "bad request")
 
     return Failover(status_code=last_status or 500)
+
+
+def _to_provider_messages(messages: list[ChatMessageRequest]) -> list[Message]:
+    return [{"role": message.role, "content": [{"text": message.content}]} for message in messages]

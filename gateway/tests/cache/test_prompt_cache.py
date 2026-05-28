@@ -133,6 +133,24 @@ async def test_get_falls_back_to_semantic_when_exact_misses():
 
 
 @pytest.mark.asyncio
+async def test_get_can_skip_semantic_when_exact_misses():
+    exact = InMemoryCacheBackend()
+    semantic = InMemorySemanticBackend()
+    semantic._store[("hi", EXAMPLE_MODEL, EXAMPLE_PROVIDER)] = "semantic-hit"
+    cache = make_cache(exact=exact, semantic=semantic)
+
+    result = await cache.get(
+        prompt="hi",
+        model=EXAMPLE_MODEL,
+        provider=EXAMPLE_PROVIDER,
+        use_semantic=False,
+    )
+
+    assert result is None
+    assert semantic.lookup_calls == []
+
+
+@pytest.mark.asyncio
 async def test_get_returns_none_when_both_miss():
     exact = InMemoryCacheBackend()
     semantic = InMemorySemanticBackend()
@@ -170,6 +188,25 @@ async def test_set_writes_to_both_backends():
             "ttl_seconds": EXAMPLE_TTL_SECONDS,
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_set_can_skip_semantic_backend():
+    exact = InMemoryCacheBackend()
+    semantic = InMemorySemanticBackend()
+    cache = make_cache(exact=exact, semantic=semantic)
+
+    await cache.set(
+        prompt="hi",
+        response="answer",
+        model=EXAMPLE_MODEL,
+        provider=EXAMPLE_PROVIDER,
+        use_semantic=False,
+    )
+
+    exact_key = cache._build_exact_key(prompt="hi", model=EXAMPLE_MODEL, provider=EXAMPLE_PROVIDER)
+    assert await exact.get(exact_key) == "answer"
+    assert semantic.store_calls == []
 
 
 @pytest.mark.asyncio
