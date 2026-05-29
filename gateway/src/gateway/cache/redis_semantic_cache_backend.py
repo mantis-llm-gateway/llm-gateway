@@ -112,6 +112,9 @@ class RedisSemanticCacheBackend:
                 "2",
                 "payload",
                 "distance",
+                "LIMIT",
+                "0",
+                str(self._top_k),
                 "DIALECT",
                 "2",
             )

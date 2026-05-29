@@ -26,22 +26,30 @@ class FakeSearchRedis:
     """Minimal async Redis stand-in for lookup tests.
 
     Returns a canned FT.SEARCH response so we can drive `lookup` without
-    standing up real Redis or computing real embeddings.
+    standing up real Redis or computing real embeddings. Also records the
+    args passed to execute_command so tests can assert command shape.
     """
 
     def __init__(self, search_response: list) -> None:
         self._search_response = search_response
+        self.execute_command_calls: list[tuple] = []
 
     async def execute_command(self, *args) -> list:
+        self.execute_command_calls.append(args)
         return self._search_response
 
 
-def _make_backend(redis) -> RedisSemanticCacheBackend:
+def _make_backend(
+    redis,
+    *,
+    top_k: int = 3,
+    similarity_threshold: float = 0.8,
+) -> RedisSemanticCacheBackend:
     return RedisSemanticCacheBackend(
         redis_client=redis,
         embedder=FakeEmbedder(),
-        similarity_threshold=0.8,
-        top_k=3,
+        similarity_threshold=similarity_threshold,
+        top_k=top_k,
     )
 
 
@@ -137,3 +145,47 @@ async def test_lookup_picks_best_match_when_results_are_out_of_order():
     result = await backend.lookup(prompt="hello", model="claude-3", provider="anthropic")
 
     assert result == "better match"
+
+
+@pytest.mark.asyncio
+async def test_lookup_sends_well_formed_ft_search_command():
+    # Locks in the shape of the FT.SEARCH command lookup sends to Redis:
+    # the command name, target index, the KNN/filter query, PARAMS+vec binding,
+    # RETURN fields, LIMIT matched to top_k, and DIALECT 2. Using top_k=5
+    # (distinct from the _make_backend default) so the value is visibly threaded
+    # through from config into both the KNN clause and LIMIT.
+    redis = FakeSearchRedis(search_response=[0])
+    backend = _make_backend(redis, top_k=5)
+
+    await backend.lookup(prompt="hello", model="claude-3", provider="anthropic")
+
+    assert len(redis.execute_command_calls) == 1
+    args = redis.execute_command_calls[0]
+
+    assert args[0] == "FT.SEARCH"
+    assert args[1] == RedisSemanticCacheBackend.REDIS_INDEX_NAME
+
+    # Query string carries the sanitized provider/model filter and the KNN clause
+    # tied to top_k. Sanitization replaces "-" with "_" (claude-3 -> claude_3).
+    query = args[2]
+    assert "@provider:{anthropic}" in query
+    assert "@model:{claude_3}" in query
+    assert "KNN 5 @vector $vec AS distance" in query
+
+    # PARAMS binds the encoded vector to $vec; the count is the number of
+    # name/value pairs that follow (here just one: vec).
+    params_index = args.index("PARAMS")
+    assert args[params_index : params_index + 3] == ("PARAMS", "2", "vec")
+    assert isinstance(args[params_index + 3], bytes)  # encoded vector
+
+    # RETURN limits the response payload to the two fields lookup actually reads.
+    return_index = args.index("RETURN")
+    assert args[return_index : return_index + 4] == ("RETURN", "2", "payload", "distance")
+
+    # LIMIT must match top_k so we don't silently truncate at the default 10.
+    limit_index = args.index("LIMIT")
+    assert args[limit_index : limit_index + 3] == ("LIMIT", "0", "5")
+
+    # DIALECT 2 enables the =>[KNN ...] syntax used in the query.
+    dialect_index = args.index("DIALECT")
+    assert args[dialect_index : dialect_index + 2] == ("DIALECT", "2")
