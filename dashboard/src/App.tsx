@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useForm, useFieldArray } from 'react-hook-form'
+import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import type { Control, UseFormRegister } from 'react-hook-form'
 import type { FormValues, Config } from './types'
 import { fetchConfig, submitConfig } from './api'
@@ -104,11 +104,12 @@ function SectionHeading({ title }: { title: string }) {
 
 export default function App() {
   const [loading, setLoading] = useState(true)
+  const [reloadRequired, setReloadRequired] = useState(false)
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(
     null
   )
 
-  const { register, handleSubmit, control, reset, watch, setValue } = useForm<FormValues>()
+  const { register, handleSubmit, control, reset, setValue } = useForm<FormValues>()
 
   const { fields: aliasFields, append: appendAlias, remove: removeAlias } = useFieldArray({
     control,
@@ -126,13 +127,16 @@ export default function App() {
     remove: removeFallback,
   } = useFieldArray({ control, name: 'fallbacks' })
 
-  const watchedAliases = watch('aliases') ?? []
-  const watchedRules = watch('routing_rules') ?? []
-  const watchedSemantic = watch('prompt_cache.semantic')
+  const watchedAliases = useWatch({ control, name: 'aliases' }) ?? []
+  const watchedRules = useWatch({ control, name: 'routing_rules' }) ?? []
+  const watchedSemantic = useWatch({ control, name: 'prompt_cache.semantic' })
 
   useEffect(() => {
     fetchConfig()
-      .then(config => reset(toFormValues(config)))
+      .then(response => {
+        reset(toFormValues(response.config))
+        setReloadRequired(response.reload_required)
+      })
       .catch(e => setStatus({ type: 'error', message: e.message }))
       .finally(() => setLoading(false))
   }, [reset])
@@ -140,9 +144,15 @@ export default function App() {
   async function onSubmit(values: FormValues) {
     setStatus(null)
     try {
-      const updated = await submitConfig(toConfig(values))
-      reset(toFormValues(updated))
-      setStatus({ type: 'success', message: 'Config saved successfully.' })
+      const response = await submitConfig(toConfig(values))
+      reset(toFormValues(response.config))
+      setReloadRequired(response.reload_required)
+      setStatus({
+        type: 'success',
+        message: response.reload_required
+          ? 'Config saved. Restart the gateway to load these changes.'
+          : 'Config saved successfully.',
+      })
     } catch (e) {
       setStatus({ type: 'error', message: (e as Error).message })
     }
@@ -172,6 +182,12 @@ export default function App() {
             </div>
 
             <div className="form-body">
+              {reloadRequired && (
+                <p className="reload-notice">
+                  Saved config differs from the active gateway config. Restart the service to apply it.
+                </p>
+              )}
+
               <form onSubmit={handleSubmit(onSubmit)}>
 
                 {/* ── General Settings ───────────────────────────── */}

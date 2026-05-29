@@ -1,12 +1,12 @@
-import type { Config } from './types';
+import type { Config, ConfigResponse } from './types';
 
-export async function fetchConfig(): Promise<Config> {
+export async function fetchConfig(): Promise<ConfigResponse> {
   const res = await fetch('/config');
   if (!res.ok) throw new Error(`Failed to load config: ${res.status}`);
   return res.json();
 }
 
-export async function submitConfig(config: Config): Promise<Config> {
+export async function submitConfig(config: Config): Promise<ConfigResponse> {
   const res = await fetch('/config', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

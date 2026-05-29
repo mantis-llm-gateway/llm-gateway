@@ -256,6 +256,17 @@
   border: 1px solid #f5c6c2;
 }
 
+.reload-notice {
+  margin: 0 0 1.25rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.65rem 0.9rem;
+  border-radius: 5px;
+  color: #6b4f00;
+  background: #fff7d1;
+  border: 1px solid #f1d26b;
+}
+
 /* ── Read-only rule ID badge ──────────────────────────────────────── */
 .rule-id {
   font-family: monospace;

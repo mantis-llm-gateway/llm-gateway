@@ -43,6 +43,11 @@ export interface Config {
   prompt_cache: PromptCacheConfig;
 }
 
+export interface ConfigResponse {
+  config: Config;
+  reload_required: boolean;
+}
+
 // react-hook-form works with arrays, not dicts.
 // We flatten aliases into a list for the form and convert back on submit.
 export interface AliasRow {
