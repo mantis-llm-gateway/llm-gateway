@@ -35,6 +35,7 @@ data "aws_caller_identity" "current" {}
 
 locals {
   routing_config_parameter_name = "/gw-${var.owner}/routing/config"
+  dashboard_bucket_name         = "gw-${var.owner}-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}-dashboard"
 }
 
 resource "aws_vpc" "main" {
@@ -90,6 +91,35 @@ resource "aws_vpc_endpoint" "s3" {
   tags = {
     Name    = "vpc-endpoint-s3"
     Project = "llm_gateway"
+  }
+}
+
+resource "aws_s3_bucket" "dashboard" {
+  bucket        = local.dashboard_bucket_name
+  force_destroy = true
+
+  tags = {
+    Name    = local.dashboard_bucket_name
+    Project = "llm_gateway"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "dashboard" {
+  bucket = aws_s3_bucket.dashboard.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "dashboard" {
+  bucket = aws_s3_bucket.dashboard.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
   }
 }
 
@@ -458,6 +488,7 @@ resource "aws_ecs_task_definition" "gw" {
       { name = "LOG_LEVEL", value = "INFO" },
       { name = "AWS_REGION", value = data.aws_region.current.region },
       { name = "PARAMETER_STORE_CONFIG_KEY", value = aws_ssm_parameter.routing_config.name },
+      { name = "DASHBOARD_S3_BUCKET", value = aws_s3_bucket.dashboard.bucket },
       { name = "BEDROCK_GUARDRAIL_VERSION", value = "1" },
       { name = "BEDROCK_EMBEDDING_MODEL", value = "amazon.titan-embed-text-v2:0" }
     ]
@@ -554,6 +585,14 @@ resource "aws_iam_role_policy" "ecs_task_policy" {
           "ssm:PutParameter"
         ]
         Resource = aws_ssm_parameter.routing_config.arn
+      },
+      {
+        Sid    = "ReadDashboardAssets"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject"
+        ]
+        Resource = "${aws_s3_bucket.dashboard.arn}/*"
       }
     ]
   })
@@ -710,4 +749,9 @@ resource "aws_ecs_service" "gw" {
   tags = {
     Project = "llm_gateway"
   }
+}
+
+output "dashboard_bucket_name" {
+  description = "S3 bucket where dashboard build files should be uploaded"
+  value       = aws_s3_bucket.dashboard.bucket
 }

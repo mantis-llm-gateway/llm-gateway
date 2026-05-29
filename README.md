@@ -108,6 +108,23 @@ aws ecs update-service --profile gw \
   --force-new-deployment
 ```
 
+### Dashboard static files
+
+Terraform creates a private S3 bucket for dashboard build files and injects its
+name into the gateway task as `DASHBOARD_S3_BUCKET`. The gateway serves `GET /`
+and dashboard asset paths by reading objects from that bucket; API routes such as
+`/health`, `/config`, and `/v1/chat/completions` still resolve before the
+dashboard fallback.
+
+After building the dashboard, upload the generated files to the bucket output by
+Terraform:
+
+```sh
+npm --prefix dashboard run build
+aws s3 sync gateway/src/gateway/dashboard_dist/ \
+  s3://$(terraform -chdir=infra output -raw dashboard_bucket_name)/
+```
+
 ## Infrastructure (Terraform)
 
 The AWS infrastructure lives in `infra/`. Each developer can spin up their own namespaced environment by passing their name as a Terraform variable.
