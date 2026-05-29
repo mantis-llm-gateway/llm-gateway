@@ -22,6 +22,9 @@ build/
 dist/
 *.egg-info/
 
+# JavaScript dependencies
+node_modules/
+
 # IDEs
 .vscode/
 .idea/
