@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # Routing config
     parameter_store_config_key: str | None = Field(default=None)
 
+    # Dashboard static assets
+    dashboard_s3_bucket: str | None = Field(default=None)
+    dashboard_s3_prefix: str = Field(default="")
+
     # Bedrock
     bedrock_guardrail_id: str | None = Field(default=None)
     bedrock_guardrail_version: str | None = Field(default=None)

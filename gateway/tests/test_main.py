@@ -1,5 +1,7 @@
 import json
 
+from botocore.exceptions import ClientError
+
 
 class FakeSsmClient:
     def __init__(self, value: str) -> None:
@@ -19,11 +21,45 @@ class FakeSsmClient:
         self.put_parameter_calls.append(kwargs)
 
 
-class FakeAioboto3Session:
-    def __init__(self, client: FakeSsmClient) -> None:
-        self._client = client
+class FakeS3Body:
+    def __init__(self, content: bytes) -> None:
+        self.content = content
 
-    def client(self, *args, **kwargs):
+    async def read(self) -> bytes:
+        return self.content
+
+
+class FakeS3Client:
+    def __init__(self, objects: dict[str, tuple[bytes, str]]) -> None:
+        self.objects = objects
+        self.get_object_calls: list[dict] = []
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        pass
+
+    async def get_object(self, **kwargs):
+        self.get_object_calls.append(kwargs)
+        key = kwargs["Key"]
+        if key not in self.objects:
+            raise ClientError(
+                {"Error": {"Code": "NoSuchKey", "Message": "Not found"}},
+                "GetObject",
+            )
+        content, content_type = self.objects[key]
+        return {"Body": FakeS3Body(content), "ContentType": content_type}
+
+
+class FakeAioboto3Session:
+    def __init__(self, client=None, **clients) -> None:
+        self._client = client
+        self._clients = clients
+
+    def client(self, service_name=None, *args, **kwargs):
+        if service_name in self._clients:
+            return self._clients[service_name]
         return self._client
 
 
@@ -93,6 +129,44 @@ def test_update_config_writes_parameter_store_without_replacing_active_config(
         }
     ]
     assert test_context.config.default_model == "model-a"
+
+
+def test_dashboard_serves_asset_from_s3(client, test_context, monkeypatch):
+    fake_s3 = FakeS3Client({"assets/app.js": (b"console.log('hello')", "text/javascript")})
+    test_context.settings.dashboard_s3_bucket = "gw-test-dashboard"
+    monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(s3=fake_s3))
+
+    response = client.get("/assets/app.js")
+
+    assert response.status_code == 200
+    assert response.text == "console.log('hello')"
+    assert response.headers["content-type"].startswith("text/javascript")
+    assert fake_s3.get_object_calls == [{"Bucket": "gw-test-dashboard", "Key": "assets/app.js"}]
+
+
+def test_dashboard_falls_back_to_s3_index_for_spa_routes(client, test_context, monkeypatch):
+    fake_s3 = FakeS3Client({"index.html": (b"<div id='root'></div>", "text/html")})
+    test_context.settings.dashboard_s3_bucket = "gw-test-dashboard"
+    monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(s3=fake_s3))
+
+    response = client.get("/routing-rules")
+
+    assert response.status_code == 200
+    assert response.text == "<div id='root'></div>"
+    assert fake_s3.get_object_calls == [
+        {"Bucket": "gw-test-dashboard", "Key": "routing-rules"},
+        {"Bucket": "gw-test-dashboard", "Key": "index.html"},
+    ]
+
+
+def test_dashboard_returns_404_for_missing_s3_asset(client, test_context, monkeypatch):
+    fake_s3 = FakeS3Client({})
+    test_context.settings.dashboard_s3_bucket = "gw-test-dashboard"
+    monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(s3=fake_s3))
+
+    response = client.get("/assets/missing.js")
+
+    assert response.status_code == 404
 
 
 def test_handler_returns_200_with_response_text(client):

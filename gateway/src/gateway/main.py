@@ -1,14 +1,17 @@
 import json
 import logging
+import mimetypes
 import secrets
 from contextlib import asynccontextmanager
+from email.utils import format_datetime
 from pathlib import Path
+from posixpath import join as join_s3_key
 
 import aioboto3
 import boto3
+from botocore.exceptions import ClientError
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import TypeAdapter, ValidationError
 
 from gateway.context import AppContext, build_context, shutdown_context
@@ -50,6 +53,74 @@ def _config_response(ctx: AppContext, config: Config) -> ConfigResponse:
         config=config,
         reload_required=config.model_dump(mode="json") != ctx.config.model_dump(mode="json"),
     )
+
+
+def _dashboard_key(path: str, settings: Settings) -> str:
+    key = path.strip("/") or "index.html"
+    prefix = settings.dashboard_s3_prefix.strip("/")
+    return join_s3_key(prefix, key) if prefix else key
+
+
+def _local_dashboard_file(path: str) -> Path | None:
+    requested = path.strip("/") or "index.html"
+    if ".." in Path(requested).parts:
+        return None
+
+    dashboard_dist = Path(__file__).parent / "dashboard_dist"
+    candidate = (dashboard_dist / requested).resolve()
+    if not candidate.is_relative_to(dashboard_dist.resolve()):
+        return None
+    if candidate.is_file():
+        return candidate
+
+    fallback = dashboard_dist / "index.html"
+    if not Path(requested).suffix and fallback.is_file():
+        return fallback
+    return None
+
+
+async def _s3_dashboard_response(path: str, settings: Settings) -> Response:
+    if not settings.dashboard_s3_bucket:
+        raise HTTPException(status_code=404, detail="Dashboard assets are not configured")
+
+    key = _dashboard_key(path, settings)
+    response_key = key
+    session = aioboto3.Session()
+    async with session.client("s3", region_name=settings.aws_region) as s3:
+        try:
+            response = await s3.get_object(Bucket=settings.dashboard_s3_bucket, Key=key)
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code")
+            if code not in {"NoSuchKey", "404", "NotFound"} or Path(path).suffix:
+                raise HTTPException(status_code=404, detail="Dashboard asset not found") from exc
+            try:
+                response_key = _dashboard_key("index.html", settings)
+                response = await s3.get_object(
+                    Bucket=settings.dashboard_s3_bucket,
+                    Key=response_key,
+                )
+            except ClientError as index_exc:
+                raise HTTPException(
+                    status_code=404, detail="Dashboard asset not found"
+                ) from index_exc
+
+        body = await response["Body"].read()
+
+    media_type = response.get("ContentType")
+    if not media_type or media_type == "binary/octet-stream":
+        media_type = mimetypes.guess_type(response_key)[0] or "application/octet-stream"
+
+    headers = {}
+    for source, target in (
+        ("CacheControl", "Cache-Control"),
+        ("ETag", "ETag"),
+    ):
+        if source in response:
+            headers[target] = response[source]
+    if "LastModified" in response:
+        headers["Last-Modified"] = format_datetime(response["LastModified"], usegmt=True)
+
+    return Response(content=body, media_type=media_type, headers=headers)
 
 
 @asynccontextmanager
@@ -134,6 +205,13 @@ async def update_config(
     return _config_response(ctx, config)
 
 
-_dashboard_dist = Path(__file__).parent / "dashboard_dist"
-if _dashboard_dist.exists():
-    app.mount("/", StaticFiles(directory=_dashboard_dist, html=True), name="dashboard")
+@app.get("/{path:path}", include_in_schema=False)
+async def dashboard(path: str, ctx: AppContext = Depends(get_context)) -> Response:
+    if ctx.settings.dashboard_s3_bucket:
+        return await _s3_dashboard_response(path, ctx.settings)
+
+    local_file = _local_dashboard_file(path)
+    if local_file:
+        return FileResponse(local_file)
+
+    raise HTTPException(status_code=404, detail="Dashboard assets are not configured")
