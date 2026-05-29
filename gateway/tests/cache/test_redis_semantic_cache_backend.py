@@ -22,6 +22,20 @@ class FakeIndexRedis:
             raise self._error
 
 
+class FakeSearchRedis:
+    """Minimal async Redis stand-in for lookup tests.
+
+    Returns a canned FT.SEARCH response so we can drive `lookup` without
+    standing up real Redis or computing real embeddings.
+    """
+
+    def __init__(self, search_response: list) -> None:
+        self._search_response = search_response
+
+    async def execute_command(self, *args) -> list:
+        return self._search_response
+
+
 def _make_backend(redis) -> RedisSemanticCacheBackend:
     return RedisSemanticCacheBackend(
         redis_client=redis,
@@ -102,3 +116,24 @@ async def test_ensure_index_exists_reraises_unrelated_response_errors():
 
     with pytest.raises(ResponseError, match="Something else broke"):
         await backend.ensure_index_exists()
+
+
+@pytest.mark.asyncio
+async def test_lookup_picks_best_match_when_results_are_out_of_order():
+    # FT.SEARCH does not guarantee ascending distance ordering across the result
+    # set. Here the first entry is the worse match (distance 0.4 -> similarity 0.6)
+    # and the second is the better match (distance 0.1 -> similarity 0.9). lookup
+    # must return the second entry's payload, not the first.
+    search_response = [
+        2,
+        "prompt:semantic:worse",
+        ["payload", "worse match", "distance", "0.4"],
+        "prompt:semantic:better",
+        ["payload", "better match", "distance", "0.1"],
+    ]
+    redis = FakeSearchRedis(search_response=search_response)
+    backend = _make_backend(redis)
+
+    result = await backend.lookup(prompt="hello", model="claude-3", provider="anthropic")
+
+    assert result == "better match"
