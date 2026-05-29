@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import TypeAdapter, ValidationError
 
 from gateway.context import AppContext, build_context, shutdown_context
-from gateway.models import ChatCompletionsRequest, Config
+from gateway.models import ChatCompletionsRequest, Config, ConfigResponse
 from gateway.orchestrator import orchestrate
 from gateway.settings import Settings, get_settings
 from gateway.validation import validate_config
@@ -28,6 +28,28 @@ def _load_config(settings: Settings) -> Config:
             config = Config(**json.load(f))
     validate_config(config)
     return config
+
+
+async def _load_persisted_config(settings: Settings) -> Config | None:
+    if not settings.parameter_store_config_key:
+        return None
+
+    session = aioboto3.Session()
+    async with session.client("ssm", region_name=settings.aws_region) as ssm:
+        response = await ssm.get_parameter(
+            Name=settings.parameter_store_config_key,
+            WithDecryption=True,
+        )
+    config = Config(**json.loads(response["Parameter"]["Value"]))
+    validate_config(config)
+    return config
+
+
+def _config_response(ctx: AppContext, config: Config) -> ConfigResponse:
+    return ConfigResponse(
+        config=config,
+        reload_required=config.model_dump(mode="json") != ctx.config.model_dump(mode="json"),
+    )
 
 
 @asynccontextmanager
@@ -69,8 +91,9 @@ async def health() -> dict[str, str]:
 
 
 @app.get("/config")
-async def get_config(ctx: AppContext = Depends(get_context)) -> Config:
-    return ctx.config
+async def get_config(ctx: AppContext = Depends(get_context)) -> ConfigResponse:
+    config = await _load_persisted_config(ctx.settings)
+    return _config_response(ctx, config or ctx.config)
 
 
 @app.post("/v1/chat/completions", response_model=None)
@@ -86,7 +109,7 @@ async def chat_completions(
 async def update_config(
     config: Config,
     ctx: AppContext = Depends(get_context),
-) -> Config:
+) -> ConfigResponse:
     for rule in config.routing_rules:
         if not rule.id:
             rule.id = secrets.token_hex(4)
@@ -94,17 +117,21 @@ async def update_config(
         validate_config(config)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
-    if ctx.settings.parameter_store_config_key:
-        session = aioboto3.Session()
-        async with session.client("ssm", region_name=ctx.settings.aws_region) as ssm:
-            await ssm.put_parameter(
-                Name=ctx.settings.parameter_store_config_key,
-                Value=config.model_dump_json(),
-                Type="String",
-                Overwrite=True,
-            )
-    ctx.config = config
-    return config
+    if not ctx.settings.parameter_store_config_key:
+        raise HTTPException(
+            status_code=409,
+            detail="PARAMETER_STORE_CONFIG_KEY must be configured to persist routing config",
+        )
+
+    session = aioboto3.Session()
+    async with session.client("ssm", region_name=ctx.settings.aws_region) as ssm:
+        await ssm.put_parameter(
+            Name=ctx.settings.parameter_store_config_key,
+            Value=config.model_dump_json(),
+            Type="String",
+            Overwrite=True,
+        )
+    return _config_response(ctx, config)
 
 
 _dashboard_dist = Path(__file__).parent / "dashboard_dist"

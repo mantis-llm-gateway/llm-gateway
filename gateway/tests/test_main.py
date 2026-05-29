@@ -1,10 +1,98 @@
 import json
 
 
+class FakeSsmClient:
+    def __init__(self, value: str) -> None:
+        self.value = value
+        self.put_parameter_calls: list[dict] = []
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        pass
+
+    async def get_parameter(self, **kwargs):
+        return {"Parameter": {"Value": self.value}}
+
+    async def put_parameter(self, **kwargs):
+        self.put_parameter_calls.append(kwargs)
+
+
+class FakeAioboto3Session:
+    def __init__(self, client: FakeSsmClient) -> None:
+        self._client = client
+
+    def client(self, *args, **kwargs):
+        return self._client
+
+
 def test_health_returns_ok(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_get_config_returns_reload_metadata(client, test_config):
+    response = client.get("/config")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "config": json.loads(test_config.model_dump_json()),
+        "reload_required": False,
+    }
+
+
+def test_get_config_flags_when_parameter_store_differs(
+    client, test_config, test_context, monkeypatch
+):
+    persisted_config = test_config.model_copy(update={"default_model": "fallback"})
+    fake_ssm = FakeSsmClient(persisted_config.model_dump_json())
+    test_context.settings.parameter_store_config_key = "/gw-test/routing/config"
+    monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(fake_ssm))
+
+    response = client.get("/config")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "config": json.loads(persisted_config.model_dump_json()),
+        "reload_required": True,
+    }
+
+
+def test_update_config_requires_parameter_store(client, test_config, test_context):
+    updated_config = test_config.model_copy(update={"default_model": "fallback"})
+
+    response = client.post("/config", json=json.loads(updated_config.model_dump_json()))
+
+    assert response.status_code == 409
+    assert test_context.config.default_model == "model-a"
+
+
+def test_update_config_writes_parameter_store_without_replacing_active_config(
+    client, test_config, test_context, monkeypatch
+):
+    updated_config = test_config.model_copy(update={"default_model": "fallback"})
+    fake_ssm = FakeSsmClient(test_config.model_dump_json())
+    test_context.settings.parameter_store_config_key = "/gw-test/routing/config"
+    monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(fake_ssm))
+
+    response = client.post("/config", json=json.loads(updated_config.model_dump_json()))
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "config": json.loads(updated_config.model_dump_json()),
+        "reload_required": True,
+    }
+    assert fake_ssm.put_parameter_calls == [
+        {
+            "Name": "/gw-test/routing/config",
+            "Value": updated_config.model_dump_json(),
+            "Type": "String",
+            "Overwrite": True,
+        }
+    ]
+    assert test_context.config.default_model == "model-a"
 
 
 def test_handler_returns_200_with_response_text(client):

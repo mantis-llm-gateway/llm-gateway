@@ -33,6 +33,10 @@ data "aws_availability_zones" "available" {}
 
 data "aws_caller_identity" "current" {}
 
+locals {
+  routing_config_parameter_name = "/gw-${var.owner}/routing/config"
+}
+
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
 
@@ -300,6 +304,20 @@ resource "aws_ssm_parameter" "cache_port" {
   }
 }
 
+resource "aws_ssm_parameter" "routing_config" {
+  name  = local.routing_config_parameter_name
+  type  = "String"
+  value = file("${path.module}/../gateway/src/gateway/config.json")
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+
+  tags = {
+    Project = "llm_gateway"
+  }
+}
+
 resource "aws_bedrock_guardrail" "gw" {
   name        = "gw-${var.owner}-guardrails"
   description = "LLM gateway content + PII + prompt injection guardrail"
@@ -439,6 +457,7 @@ resource "aws_ecs_task_definition" "gw" {
       { name = "PORT", value = "8000" },
       { name = "LOG_LEVEL", value = "INFO" },
       { name = "AWS_REGION", value = data.aws_region.current.region },
+      { name = "PARAMETER_STORE_CONFIG_KEY", value = aws_ssm_parameter.routing_config.name },
       { name = "BEDROCK_GUARDRAIL_VERSION", value = "1" },
       { name = "BEDROCK_EMBEDDING_MODEL", value = "amazon.titan-embed-text-v2:0" }
     ]
@@ -526,6 +545,15 @@ resource "aws_iam_role_policy" "ecs_task_policy" {
           "aws-marketplace:Unsubscribe"
         ]
         Resource = "*"
+      },
+      {
+        Sid    = "ManageRoutingConfig"
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:PutParameter"
+        ]
+        Resource = aws_ssm_parameter.routing_config.arn
       }
     ]
   })

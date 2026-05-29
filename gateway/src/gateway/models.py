@@ -50,6 +50,11 @@ class Config(BaseModel):
     prompt_cache: PromptCacheConfig
 
 
+class ConfigResponse(BaseModel):
+    config: Config
+    reload_required: bool
+
+
 class ChatMessageRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

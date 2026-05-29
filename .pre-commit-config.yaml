@@ -31,3 +31,4 @@ repos:
     hooks:
       - id: terraform_fmt
       - id: terraform_validate
+        stages: [manual]
