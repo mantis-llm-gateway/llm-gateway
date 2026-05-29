@@ -71,7 +71,6 @@ class BedrockEmbedder:
             embedding = json.loads(response_body).get("embedding")
 
             # TODO: observability logs (see TEA-87)
-            print(f"Embedding (first 5 values): {embedding[:5]}")
 
         except (ClientError, BotoCoreError) as e:
             embedding = None
