@@ -51,7 +51,11 @@ async def test_cache_key_includes_full_conversation(test_context):
 
     with patch(
         "gateway.orchestrator.execute_attempt",
-        new=AsyncMock(return_value=CompleteSuccess(response="hello")),
+        new=AsyncMock(
+            return_value=CompleteSuccess(
+                response={"response": "hello", "input_tokens": 0, "output_tokens": 0}
+            )
+        ),
     ):
         await orchestrate(
             {"task-type": "code_generation"},
@@ -81,7 +85,11 @@ async def test_long_conversation_skips_semantic_cache_only(test_context):
 
     with patch(
         "gateway.orchestrator.execute_attempt",
-        new=AsyncMock(return_value=CompleteSuccess(response="hello")),
+        new=AsyncMock(
+            return_value=CompleteSuccess(
+                response={"response": "hello", "input_tokens": 0, "output_tokens": 0}
+            )
+        ),
     ):
         await orchestrate(
             {"task-type": "code_generation"},

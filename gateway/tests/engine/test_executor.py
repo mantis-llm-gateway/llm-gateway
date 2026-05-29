@@ -221,6 +221,7 @@ class TestExecuteAttempt:
         with caplog.at_level(logging.WARNING, logger="gateway.engine.executor"):
             verdict = await execute_attempt(
                 target,
+                messages=make_messages(),
                 metadata={"user": "test"},
                 prompt="hi",
                 stream=True,
@@ -245,6 +246,7 @@ class TestExecuteAttempt:
         with caplog.at_level(logging.INFO, logger="gateway.engine.executor"):
             verdict = await execute_attempt(
                 target,
+                messages=make_messages(),
                 metadata={},
                 prompt="hi",
                 stream=True,
@@ -271,6 +273,7 @@ class TestExecuteAttempt:
         with caplog.at_level(logging.WARNING, logger="gateway.engine.executor"):
             verdict = await execute_attempt(
                 target,
+                messages=make_messages(),
                 metadata={"user": "test"},
                 prompt="hi",
                 stream=False,

@@ -112,13 +112,15 @@ class RedisSemanticCacheBackend:
                 "2",
                 "payload",
                 "distance",
-                "SORTBY",
-                "distance",
+                "LIMIT",
+                "0",
+                str(self._top_k),
                 "DIALECT",
                 "2",
             )
 
             matches = self._parse_search_results(result)
+            matches.sort(key=lambda m: m["similarity"], reverse=True)
 
         except RedisError as e:
             logger.warning(
