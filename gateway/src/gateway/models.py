@@ -21,7 +21,7 @@ class TargetConfig(BaseModel):
 
 
 class RoutingRuleConfig(BaseModel):
-    id: str
+    id: str | None = None
     name: str
     match: RuleMatchConfig
     targets: list[TargetConfig]

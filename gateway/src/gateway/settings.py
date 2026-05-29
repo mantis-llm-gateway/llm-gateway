@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     aws_region: str = Field(default="us-east-1")
     log_level: str = Field(default="INFO")
 
+    # Routing config
+    parameter_store_config_key: str | None = Field(default=None)
+
     # Bedrock
     bedrock_guardrail_id: str | None = Field(default=None)
     bedrock_guardrail_version: str | None = Field(default=None)
