@@ -8,9 +8,9 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from gateway.context import AppContext
 from gateway.engine import Abort, CompleteSuccess, Failover, StreamingSuccess, execute_attempt
+from gateway.engine.errors import bedrock_error_code
 from gateway.models import ChatMessageRequest
 from gateway.routing import resolve_attempt_chain
-from gateway.engine.errors import bedrock_error_code
 
 
 async def _handle_stream(chunks: AsyncIterator[str]) -> AsyncGenerator[str, None]:

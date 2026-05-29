@@ -18,6 +18,7 @@ async def _gen():
 def make_messages(content: str = "hi") -> list[ChatMessageRequest]:
     return [ChatMessageRequest(role="user", content=content)]
 
+
 async def _timeout_gen():
     raise ClientError(
         {"Error": {"Code": "ChunkTimeOutException", "Message": "timeout"}},
