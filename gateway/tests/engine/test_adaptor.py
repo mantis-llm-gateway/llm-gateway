@@ -293,5 +293,9 @@ async def test_stream_idle_timeout(provider_adaptor: ProviderAdaptor):
     )
 
     with pytest.raises(ClientError):
-        stream = await provider_adaptor.stream_request(MODEL_ID, MESSAGES, STREAM_IDLE_TIMEOUT)
-        _ = [token async for token in stream]
+        _ = [
+            token
+            async for token in await provider_adaptor.stream_request(
+                MODEL_ID, MESSAGES, STREAM_IDLE_TIMEOUT
+            )
+        ]

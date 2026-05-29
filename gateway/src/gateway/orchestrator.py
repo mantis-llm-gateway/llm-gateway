@@ -1,7 +1,9 @@
 import json
 import logging
+from collections.abc import AsyncGenerator, AsyncIterator
 from datetime import UTC, datetime, timedelta
 
+from botocore.exceptions import ClientError
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from gateway.context import AppContext
@@ -46,7 +48,7 @@ async def orchestrate(
     skip_cache = _should_skip_cache(temperature, ctx)
 
     last_status: int | None = None
-    for target in resolved_chain:
+    for idx, target in enumerate(resolved_chain):
         if datetime.now(UTC) > deadline:
             return JSONResponse(status_code=504, content={"error": "request timed out"})
 
@@ -117,7 +119,11 @@ async def orchestrate(
                     )
                 return JSONResponse(content={"response": result["response"]})
             case StreamingSuccess(chunks=g):
-                return StreamingResponse(g, media_type="text/event-stream")
+                remaining = resolved_chain[idx + 1 :]
+                return StreamingResponse(
+                    _failover_stream(g, target, remaining, prompt, ctx),
+                    media_type="text/event-stream",
+                )
             case Abort(status_code=code, message=msg):
                 latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
                 logger.warning(

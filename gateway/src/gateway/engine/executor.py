@@ -116,6 +116,9 @@ async def _logged_token_strings(
         )
         raise
 
+async def _set_cooldown(redis: Redis, target: ResolvedTarget, cooldown_ttl: int) -> None:
+    await redis.set(f"gateway:cooldown:{target.provider}:{target.model}", 1, ex=cooldown_ttl)
+
 
 async def execute_attempt(
     target: ResolvedTarget,
@@ -204,9 +207,7 @@ async def execute_attempt(
                         "target put into cooldown",
                         extra={"provider": target.provider, "model": target.model},
                     )
-                    await redis.set(
-                        f"gateway:cooldown:{target.provider}:{target.model}", 1, ex=cooldown_ttl
-                    )
+                    await _set_cooldown(redis, target, cooldown_ttl)
                     return Failover(status_code=status, message=err_msg or "service unavailable")
                 case ErrorAction.FAILOVER:
                     return Failover(status_code=status, message=err_msg or "service unavailable")
