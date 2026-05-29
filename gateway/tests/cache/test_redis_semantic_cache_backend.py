@@ -33,3 +33,15 @@ def test_parse_search_results_defaults_to_max_distance_when_distance_missing():
     expected = [{"payload": "Hello", "similarity": 0.0}]
 
     assert RedisSemanticCacheBackend._parse_search_results(raw) == expected
+
+
+def test_parse_search_results_decodes_bytes_fields():
+    raw = [
+        1,
+        b"prompt:semantic:abc123",
+        [b"payload", b"The answer you crave is 42", b"distance", b"0.1"],
+    ]
+
+    expected = [{"payload": "The answer you crave is 42", "similarity": 0.9}]
+
+    assert RedisSemanticCacheBackend._parse_search_results(raw) == expected

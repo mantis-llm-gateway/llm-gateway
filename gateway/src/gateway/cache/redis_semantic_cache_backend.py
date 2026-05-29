@@ -224,9 +224,15 @@ class RedisSemanticCacheBackend:
             field_map = {}
 
             # Inner loop: walk each (field_name, value) pair inside this entry's fields.
+            # Normalize bytes -> str so parsing works whether or not the Redis client
+            # was built with decode_responses=True.
             for j in range(0, len(fields), 2):
                 key = fields[j]
                 value = fields[j + 1]
+                if isinstance(key, bytes):
+                    key = key.decode()
+                if isinstance(value, bytes):
+                    value = value.decode()
                 field_map[key] = value
 
             # 1.0 used as a safe fallback. Most dissimilar distance.
