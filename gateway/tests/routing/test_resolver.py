@@ -32,6 +32,7 @@ def make_config(**overrides) -> Config:
         ],
         target_retries=2,
         initial_response_timeout=30,
+        stream_idle_timeout=10,
         default_model="model-a",
         fallbacks=["fallback"],
         cooldown_ttl=60,

@@ -56,7 +56,7 @@ async def _async_timeout_events(
     *events: _ContentBlockDeltaEvent,
 ) -> AsyncIterator[_ContentBlockDeltaEvent]:
     for event in events:
-        await asyncio.sleep(STREAM_IDLE_TIMEOUT + 1 / 1000)
+        await asyncio.sleep(STREAM_IDLE_TIMEOUT + 1)
         yield event
 
 

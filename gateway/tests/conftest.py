@@ -146,7 +146,7 @@ def test_config() -> Config:
         fallbacks=["fallback"],
         cooldown_ttl=60,
         prompt_cache=PromptCacheConfig(ttl_seconds=60, temperature_threshold=0.3),
-        stream_idle_timeout=10,
+        stream_idle_timeout=1,
     )
 
 

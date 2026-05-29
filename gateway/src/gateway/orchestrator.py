@@ -10,6 +10,20 @@ from gateway.context import AppContext
 from gateway.engine import Abort, CompleteSuccess, Failover, StreamingSuccess, execute_attempt
 from gateway.models import ChatMessageRequest
 from gateway.routing import resolve_attempt_chain
+from gateway.engine.errors import bedrock_error_code
+
+
+async def _handle_stream(chunks: AsyncIterator[str]) -> AsyncGenerator[str, None]:
+    try:
+        async for chunk in chunks:
+            yield chunk
+    except ClientError as e:
+        if bedrock_error_code(e) == "ChunkTimeOutException":
+            yield "\nerror: provider timeout\n"
+            return
+        else:
+            yield "\nerror: provider failure\n"
+            return
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +62,7 @@ async def orchestrate(
     skip_cache = _should_skip_cache(temperature, ctx)
 
     last_status: int | None = None
-    for idx, target in enumerate(resolved_chain):
+    for target in resolved_chain:
         if datetime.now(UTC) > deadline:
             return JSONResponse(status_code=504, content={"error": "request timed out"})
 
@@ -119,9 +133,8 @@ async def orchestrate(
                     )
                 return JSONResponse(content={"response": result["response"]})
             case StreamingSuccess(chunks=g):
-                remaining = resolved_chain[idx + 1 :]
                 return StreamingResponse(
-                    _failover_stream(g, target, remaining, prompt, ctx),
+                    _handle_stream(g),
                     media_type="text/event-stream",
                 )
             case Abort(status_code=code, message=msg):

@@ -2,6 +2,7 @@ import json as _json
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from botocore.exceptions import ClientError
 from fastapi.responses import StreamingResponse
 
 from gateway.engine import Abort, CompleteSuccess, Failover, StreamingSuccess
@@ -16,6 +17,13 @@ async def _gen():
 
 def make_messages(content: str = "hi") -> list[ChatMessageRequest]:
     return [ChatMessageRequest(role="user", content=content)]
+
+async def _timeout_gen():
+    raise ClientError(
+        {"Error": {"Code": "ChunkTimeOutException", "Message": "timeout"}},
+        "ReceiveNextChunk",
+    )
+    yield
 
 
 @pytest.mark.asyncio
@@ -260,3 +268,24 @@ async def test_all_cooled_returns_none(test_context, fake_redis):
         )
     assert mock_attempt.await_count == 0
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_timeout_stream_abort(test_context):
+    with (
+        patch(
+            "gateway.orchestrator.execute_attempt",
+            new=AsyncMock(return_value=StreamingSuccess(chunks=_timeout_gen())),
+        ),
+    ):
+        result = await orchestrate(
+            {"task-type": "code_generation"},
+            messages=make_messages(),
+            stream=True,
+            ctx=test_context,
+        )
+
+        assert isinstance(result, StreamingResponse)
+
+        chunks = [chunk async for chunk in result.body_iterator]
+        assert chunks == ["\nerror: provider timeout\n"]

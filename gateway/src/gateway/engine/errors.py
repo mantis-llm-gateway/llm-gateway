@@ -1,8 +1,11 @@
 from collections.abc import Mapping
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from botocore.exceptions import ClientError
+
+if TYPE_CHECKING:
+    from botocore.exceptions import _ClientErrorResponseTypeDef
 
 
 class ErrorAction(Enum):
@@ -52,9 +55,9 @@ def classify_bedrock_error(e: ClientError) -> tuple[ErrorAction, int]:
     return ErrorAction.FAILOVER, status
 
 
-def load_chunk_time_out_response() -> dict[str, Any]:
+def load_chunk_time_out_response() -> "_ClientErrorResponseTypeDef":
     return {
-        "Error": {"Code": "ThrottlingException", "Message": "The LLM provider timed out"},
+        "Error": {"Code": "ChunkTimeOutException", "Message": "The LLM provider timed out"},
         "ResponseMetadata": {
             "HTTPStatusCode": 429,
             "RequestId": "",
