@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
@@ -53,7 +53,7 @@ class Config(BaseModel):
 class ChatMessageRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    role: NonEmptyString
+    role: Literal["user", "assistant"]
     content: NonEmptyString
 
 

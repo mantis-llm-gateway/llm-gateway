@@ -43,7 +43,9 @@ class PromptCache:
         self._semantic = semantic_backend
         self._default_ttl_seconds = default_ttl_seconds
 
-    async def get(self, *, prompt: str, model: str, provider: str) -> str | None:
+    async def get(
+        self, *, prompt: str, model: str, provider: str, use_semantic: bool = True
+    ) -> str | None:
         """
         Return cached response, or None on miss.
         Backend failures will be raised (contract TBD with Redis adapter).
@@ -54,7 +56,7 @@ class PromptCache:
         hit = await self._exact.get(key)
         print(f"Result of the exact-match cache lookup: {hit!r}\n")
 
-        if hit is None and self._semantic is not None:
+        if hit is None and self._semantic is not None and use_semantic:
             print("Trying to do a semantic cache lookup (`.get`)...")
             hit = await self._semantic.lookup(prompt=prompt, model=model, provider=provider)
             print(f"Result of the semantic cache lookup: {hit!r}\n")
@@ -69,6 +71,7 @@ class PromptCache:
         model: str,
         provider: str,
         ttl_seconds: int | None = None,
+        use_semantic: bool = True,
     ) -> None:
         """
         Omit `ttl_seconds` to use the cache's configured default TTL
@@ -80,7 +83,7 @@ class PromptCache:
 
         await self._exact.set(key, response, ttl)
 
-        if self._semantic is not None:
+        if self._semantic is not None and use_semantic:
             await self._semantic.store(
                 prompt=prompt, response=response, model=model, provider=provider, ttl_seconds=ttl
             )

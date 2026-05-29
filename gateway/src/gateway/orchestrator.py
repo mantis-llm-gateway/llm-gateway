@@ -1,14 +1,16 @@
+import json
 from datetime import UTC, datetime, timedelta
 
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from gateway.context import AppContext
 from gateway.engine import Abort, CompleteSuccess, Failover, StreamingSuccess, execute_attempt
+from gateway.models import ChatMessageRequest
 from gateway.routing import resolve_attempt_chain
 
 
 async def orchestrate(
-    metadata: dict[str, str], prompt: str, stream: bool, ctx: AppContext
+    metadata: dict[str, str], messages: list[ChatMessageRequest], stream: bool, ctx: AppContext
 ) -> JSONResponse | StreamingResponse | None:
     """Run a chat-completion request through the gateway.
 
@@ -23,11 +25,13 @@ async def orchestrate(
     If no target succeeds, returns the last Failover status. If every target
     was cooled down (no attempts made), returns None.
 
-    TODO: Cache lookup at entry (PromptCache.get) and write-through on Success
-    once the executor returns the response payload.
+    The prompt cache stores a canonical JSON representation of the whole
+    conversation, so exact cache hits are scoped to the complete chat history.
     """
     deadline = datetime.now(UTC) + timedelta(seconds=ctx.config.initial_response_timeout)
     resolved_chain = resolve_attempt_chain(metadata, ctx.config)
+    cache_prompt = _conversation_cache_prompt(messages)
+    use_semantic_cache = _should_use_semantic_cache(messages, ctx)
 
     last_status: int | None = None
     for target in resolved_chain:
@@ -39,16 +43,17 @@ async def orchestrate(
 
         if not stream:
             cached = await ctx.prompt_cache.get(
-                prompt=prompt,
+                prompt=cache_prompt,
                 model=target.model,
                 provider=target.provider,
+                use_semantic=use_semantic_cache,
             )
             if cached is not None:
                 return JSONResponse(content={"response": cached})
 
         verdict = await execute_attempt(
             target,
-            prompt=prompt,
+            messages=messages,
             stream=stream,
             adaptor=ctx.adaptor,
             redis=ctx.redis,
@@ -60,10 +65,11 @@ async def orchestrate(
             case CompleteSuccess(response=text):
                 if not stream:
                     await ctx.prompt_cache.set(
-                        prompt=prompt,
+                        prompt=cache_prompt,
                         response=text,
                         model=target.model,
                         provider=target.provider,
+                        use_semantic=use_semantic_cache,
                     )
                 return JSONResponse(content={"response": text})
             case StreamingSuccess(chunks=g):
@@ -78,3 +84,18 @@ async def orchestrate(
         return JSONResponse(status_code=last_status, content={"error": "service unavailable"})
 
     return None
+
+
+def _conversation_cache_prompt(messages: list[ChatMessageRequest]) -> str:
+    return json.dumps(
+        [message.model_dump(mode="json") for message in messages],
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def _should_use_semantic_cache(messages: list[ChatMessageRequest], ctx: AppContext) -> bool:
+    semantic_config = ctx.config.prompt_cache.semantic
+    return (
+        semantic_config is not None and len(messages) <= semantic_config.conversation_size_threshold
+    )
