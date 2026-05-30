@@ -112,13 +112,16 @@ class RedisSemanticCacheBackend:
                 "2",
                 "payload",
                 "distance",
+                "LIMIT",
+                "0",
+                str(self._top_k),
                 "DIALECT",
                 "2",
             )
 
             matches = self._parse_search_results(result)
+            matches.sort(key=lambda m: m["similarity"], reverse=True)
 
-        # TODO: observability (see TEA-87)
         except RedisError as e:
             logger.warning(
                 "redis semantic cache lookup failed: model=%s provider=%s error_type=%s error=%s",
@@ -130,13 +133,14 @@ class RedisSemanticCacheBackend:
             return None
 
         if len(matches) == 0:
+            logger.info("semantic cache lookup miss")
             return None
 
-        best_match = max(matches, key=lambda m: m["similarity"])
+        if matches[0]["similarity"] >= self._similarity_threshold:
+            logger.info("semantic cache hit")
+            return matches[0]["payload"]
 
-        if best_match["similarity"] >= self._similarity_threshold:
-            return best_match["payload"]
-
+        logger.info("semantic cache lookup miss")
         return None
 
     async def store(
@@ -176,7 +180,6 @@ class RedisSemanticCacheBackend:
 
             await self._redis.expire(key, ttl_seconds)
 
-        # TODO: observability (see TEA-87)
         except RedisError as e:
             logger.warning(
                 "redis semantic cache store failed: model=%s provider=%s error_type=%s error=%s",
@@ -185,6 +188,12 @@ class RedisSemanticCacheBackend:
                 type(e).__name__,
                 e,
             )
+            return
+
+        logger.info(
+            "set key in semantic cache",
+            extra={"key": key[:25], "ttl": ttl_seconds},
+        )
 
     @staticmethod
     def _encode_vector(embedding: list[float]) -> bytes:
@@ -224,9 +233,15 @@ class RedisSemanticCacheBackend:
             field_map = {}
 
             # Inner loop: walk each (field_name, value) pair inside this entry's fields.
+            # Normalize bytes -> str so parsing works whether or not the Redis client
+            # was built with decode_responses=True.
             for j in range(0, len(fields), 2):
                 key = fields[j]
                 value = fields[j + 1]
+                if isinstance(key, bytes):
+                    key = key.decode()
+                if isinstance(value, bytes):
+                    value = value.decode()
                 field_map[key] = value
 
             # 1.0 used as a safe fallback. Most dissimilar distance.

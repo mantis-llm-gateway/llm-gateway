@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 from botocore.exceptions import ClientError
 
@@ -5,6 +7,10 @@ from gateway.engine.executor import execute_attempt
 from gateway.engine.verdict import Abort, CompleteSuccess, Failover, StreamingSuccess
 from gateway.models import ChatMessageRequest
 from gateway.routing import ResolvedTarget
+
+
+def _start_time() -> datetime:
+    return datetime.now(UTC)
 
 
 def make_bedrock_error(code: str, http: int) -> ClientError:
@@ -42,7 +48,10 @@ class TestExecuteAttempt:
         verdict = await execute_attempt(
             target,
             messages=make_messages(),
+            metadata={},
+            prompt="hi",
             stream=False,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=0,
@@ -50,7 +59,7 @@ class TestExecuteAttempt:
         )
 
         assert isinstance(verdict, CompleteSuccess)
-        assert verdict.response == "hello"
+        assert verdict.response == {"response": "hello", "input_tokens": 0, "output_tokens": 0}
 
     async def test_stream_success_returns_streaming_success(self, fake_adaptor, fake_redis, target):
         fake_adaptor.stream_response = ["he", "llo"]
@@ -58,7 +67,10 @@ class TestExecuteAttempt:
         verdict = await execute_attempt(
             target,
             messages=make_messages(),
+            metadata={},
+            prompt="hi",
             stream=True,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=0,
@@ -74,7 +86,10 @@ class TestExecuteAttempt:
         verdict = await execute_attempt(
             target,
             messages=make_messages(),
+            metadata={},
+            prompt="hi",
             stream=True,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=0,
@@ -94,7 +109,10 @@ class TestExecuteAttempt:
                 ChatMessageRequest(role="assistant", content="hi"),
                 ChatMessageRequest(role="user", content="say it again"),
             ],
+            metadata={},
+            prompt="say hi",
             stream=False,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=0,
@@ -116,7 +134,10 @@ class TestExecuteAttempt:
         verdict = await execute_attempt(
             target,
             messages=make_messages(),
+            metadata={},
+            prompt="hi",
             stream=False,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=0,
@@ -124,7 +145,7 @@ class TestExecuteAttempt:
         )
 
         assert isinstance(verdict, Failover)
-        assert "cooldown:bedrock:claude-opus-4-7" in fake_redis._cooldowns
+        assert "gateway:cooldown:bedrock:claude-opus-4-7" in fake_redis._cooldowns
         assert verdict.message == "ThrottlingException"
 
     async def test_service_unavailable_failovers_without_cooldown(
@@ -135,7 +156,10 @@ class TestExecuteAttempt:
         verdict = await execute_attempt(
             target,
             messages=make_messages(),
+            metadata={},
+            prompt="hi",
             stream=False,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=0,
@@ -152,7 +176,10 @@ class TestExecuteAttempt:
         verdict = await execute_attempt(
             target,
             messages=make_messages(),
+            metadata={},
+            prompt="hi",
             stream=False,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=0,
@@ -169,7 +196,10 @@ class TestExecuteAttempt:
         verdict = await execute_attempt(
             target,
             messages=make_messages(),
+            metadata={},
+            prompt="hi",
             stream=False,
+            start_time=_start_time(),
             adaptor=fake_adaptor,
             redis=fake_redis,
             target_retries=2,
@@ -179,3 +209,85 @@ class TestExecuteAttempt:
         assert isinstance(verdict, Failover)
         assert verdict.status_code == 500
         assert verdict.message == "service unavailable"
+
+    async def test_guardrail_intervention_streaming_logs_warning(
+        self, fake_adaptor, fake_redis, target, caplog
+    ):
+        import logging
+
+        fake_adaptor.guardrail_intervention = True
+        fake_adaptor.stream_response = []
+
+        with caplog.at_level(logging.WARNING, logger="gateway.engine.executor"):
+            verdict = await execute_attempt(
+                target,
+                messages=make_messages(),
+                metadata={"user": "test"},
+                prompt="hi",
+                stream=True,
+                start_time=_start_time(),
+                adaptor=fake_adaptor,
+                redis=fake_redis,
+                target_retries=0,
+                cooldown_ttl=60,
+            )
+            assert isinstance(verdict, StreamingSuccess)
+            [chunk async for chunk in verdict.chunks]
+
+        assert any("guardrail intervened" in r.message for r in caplog.records)
+
+    async def test_stream_completed_logs_token_counts(
+        self, fake_adaptor, fake_redis, target, caplog
+    ):
+        import logging
+
+        fake_adaptor.stream_response = ["hello"]
+
+        with caplog.at_level(logging.INFO, logger="gateway.engine.executor"):
+            verdict = await execute_attempt(
+                target,
+                messages=make_messages(),
+                metadata={},
+                prompt="hi",
+                stream=True,
+                start_time=_start_time(),
+                adaptor=fake_adaptor,
+                redis=fake_redis,
+                target_retries=0,
+                cooldown_ttl=60,
+            )
+            assert isinstance(verdict, StreamingSuccess)
+            [chunk async for chunk in verdict.chunks]
+
+        completed = next(r for r in caplog.records if r.message == "stream completed")
+        assert completed.input_tokens == 5
+        assert completed.output_tokens == 10
+
+    async def test_guardrail_intervention_logs_warning_and_returns_complete_success(
+        self, fake_adaptor, fake_redis, target, caplog
+    ):
+        import logging
+
+        fake_adaptor.guardrail_intervention = True
+
+        with caplog.at_level(logging.WARNING, logger="gateway.engine.executor"):
+            verdict = await execute_attempt(
+                target,
+                messages=make_messages(),
+                metadata={"user": "test"},
+                prompt="hi",
+                stream=False,
+                start_time=_start_time(),
+                adaptor=fake_adaptor,
+                redis=fake_redis,
+                target_retries=0,
+                cooldown_ttl=60,
+            )
+
+        assert isinstance(verdict, CompleteSuccess)
+        assert verdict.response == {
+            "response": "blocked by guardrail",
+            "input_tokens": 0,
+            "output_tokens": 0,
+        }
+        assert any("guardrail intervened" in r.message for r in caplog.records)
