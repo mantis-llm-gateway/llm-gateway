@@ -1,6 +1,9 @@
 import json
 
+import pytest
 from botocore.exceptions import ClientError
+
+from gateway.main import _load_config
 
 
 class FakeSsmClient:
@@ -61,6 +64,19 @@ class FakeAioboto3Session:
         if service_name in self._clients:
             return self._clients[service_name]
         return self._client
+
+
+@pytest.mark.asyncio
+async def test_load_config_reads_parameter_store_with_async_client(
+    test_config, test_settings, monkeypatch
+):
+    fake_ssm = FakeSsmClient(test_config.model_dump_json())
+    test_settings.parameter_store_config_key = "/gw-test/routing/config"
+    monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(fake_ssm))
+
+    config = await _load_config(test_settings)
+
+    assert config == test_config
 
 
 def test_health_returns_ok(client):

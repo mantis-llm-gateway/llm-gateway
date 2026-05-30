@@ -3,7 +3,6 @@ import logging
 import mimetypes
 import secrets
 import sys
-
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from email.utils import format_datetime
@@ -12,7 +11,6 @@ from posixpath import join as join_s3_key
 from uuid import uuid4
 
 import aioboto3
-import boto3
 from botocore.exceptions import ClientError
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
@@ -34,10 +32,14 @@ class RequestIdFilter(logging.Filter):
         return True
 
 
-def _load_config(settings: Settings) -> Config:
+async def _load_config(settings: Settings) -> Config:
     if settings.parameter_store_config_key:
-        ssm = boto3.client("ssm", region_name=settings.aws_region)
-        response = ssm.get_parameter(Name=settings.parameter_store_config_key, WithDecryption=True)
+        session = aioboto3.Session()
+        async with session.client("ssm", region_name=settings.aws_region) as ssm:
+            response = await ssm.get_parameter(
+                Name=settings.parameter_store_config_key,
+                WithDecryption=True,
+            )
         config = Config(**json.loads(response["Parameter"]["Value"]))
     else:
         with open(Path(__file__).parent / "config.json") as f:
@@ -145,7 +147,7 @@ async def lifespan(app: FastAPI):
     handler.addFilter(RequestIdFilter())
     logging.basicConfig(level=settings.log_level.upper(), handlers=[handler])
 
-    config = _load_config(settings)
+    config = await _load_config(settings)
     app.state.context = await build_context(settings, config)
     try:
         yield
