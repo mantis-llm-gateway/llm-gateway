@@ -23,8 +23,14 @@ class _NonStreamOutput(TypedDict):
     message: _NonStreamMessage
 
 
+class _Usage(TypedDict):
+    inputTokens: int
+    outputTokens: int
+
+
 class NonStreamResponse(TypedDict):
     output: _NonStreamOutput
+    usage: _Usage
 
 
 class _ContentBlockDelta(TypedDict):
@@ -45,7 +51,10 @@ async def _async_events(*events: _ContentBlockDeltaEvent) -> AsyncIterator[_Cont
 
 
 def make_non_stream_bedrock_response(text: str) -> NonStreamResponse:
-    return {"output": {"message": {"content": [{"text": text}]}}}
+    return {
+        "output": {"message": {"content": [{"text": text}]}},
+        "usage": {"inputTokens": 10, "outputTokens": 20},
+    }
 
 
 def make_stream_bedrock_response(text: str) -> StreamResponse:
@@ -83,7 +92,7 @@ async def test_send_request_success(provider_adaptor: ProviderAdaptor):
 
     result = await provider_adaptor.send_request(MODEL_ID, MESSAGES)
 
-    assert result == "mock response"
+    assert result == {"response": "mock response", "input_tokens": 10, "output_tokens": 20}
 
 
 @pytest.mark.asyncio
@@ -128,8 +137,8 @@ async def test_stream_request_success(provider_adaptor: ProviderAdaptor):
     client = make_mock_bedrock_client(provider_adaptor)
     client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
 
-    stream = await provider_adaptor.stream_request(MODEL_ID, MESSAGES)
-    results = [token async for token in stream]
+    result = await provider_adaptor.stream_request(MODEL_ID, MESSAGES)
+    results = [token async for token in result]
 
     assert results == ["mock response"]
 
@@ -141,8 +150,8 @@ async def test_stream_request_omits_guardrail_config_when_not_set(
     client = make_mock_bedrock_client(provider_adaptor)
     client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
 
-    stream = await provider_adaptor.stream_request(MODEL_ID, MESSAGES)
-    _ = [token async for token in stream]
+    result = await provider_adaptor.stream_request(MODEL_ID, MESSAGES)
+    _ = [token async for token in result]
 
     _, kwargs = client.converse_stream.call_args
     assert "guardrailConfig" not in kwargs
@@ -155,8 +164,8 @@ async def test_stream_request_includes_guardrail_config(
     client = make_mock_bedrock_client(provider_adaptor_with_guardrails)
     client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
 
-    stream = await provider_adaptor_with_guardrails.stream_request(MODEL_ID, MESSAGES)
-    _ = [token async for token in stream]
+    result = await provider_adaptor_with_guardrails.stream_request(MODEL_ID, MESSAGES)
+    _ = [token async for token in result]
 
     _, kwargs = client.converse_stream.call_args
     assert kwargs["guardrailConfig"] == {

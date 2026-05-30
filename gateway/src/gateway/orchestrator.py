@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import UTC, datetime, timedelta
 
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -7,6 +8,8 @@ from gateway.context import AppContext
 from gateway.engine import Abort, CompleteSuccess, Failover, StreamingSuccess, execute_attempt
 from gateway.models import ChatMessageRequest
 from gateway.routing import resolve_attempt_chain
+
+logger = logging.getLogger(__name__)
 
 
 async def orchestrate(
@@ -28,9 +31,11 @@ async def orchestrate(
     The prompt cache stores a canonical JSON representation of the whole
     conversation, so exact cache hits are scoped to the complete chat history.
     """
-    deadline = datetime.now(UTC) + timedelta(seconds=ctx.config.initial_response_timeout)
+    start_time = datetime.now(UTC)
+    deadline = start_time + timedelta(seconds=ctx.config.initial_response_timeout)
     resolved_chain = resolve_attempt_chain(metadata, ctx.config)
     cache_prompt = _conversation_cache_prompt(messages)
+    prompt = cache_prompt
     use_semantic_cache = _should_use_semantic_cache(messages, ctx)
 
     last_status: int | None = None
@@ -38,7 +43,7 @@ async def orchestrate(
         if datetime.now(UTC) > deadline:
             return JSONResponse(status_code=504, content={"error": "request timed out"})
 
-        if await ctx.redis.exists(f"cooldown:{target.provider}:{target.model}"):
+        if await ctx.redis.exists(f"gateway:cooldown:{target.provider}:{target.model}"):
             continue
 
         if not stream:
@@ -49,12 +54,26 @@ async def orchestrate(
                 use_semantic=use_semantic_cache,
             )
             if cached is not None:
+                latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+                logger.info(
+                    "cache hit",
+                    extra={
+                        "metadata": metadata,
+                        "stream": stream,
+                        "provider": target.provider,
+                        "model": target.model,
+                        "latency_ms": latency_ms,
+                    },
+                )
                 return JSONResponse(content={"response": cached})
 
         verdict = await execute_attempt(
             target,
             messages=messages,
+            metadata=metadata,
+            prompt=prompt,
             stream=stream,
+            start_time=start_time,
             adaptor=ctx.adaptor,
             redis=ctx.redis,
             target_retries=ctx.config.target_retries,
@@ -62,25 +81,61 @@ async def orchestrate(
         )
 
         match verdict:
-            case CompleteSuccess(response=text):
+            case CompleteSuccess(response=result):
                 if not stream:
                     await ctx.prompt_cache.set(
-                        prompt=cache_prompt,
-                        response=text,
+                        prompt=prompt,
+                        response=result["response"],
                         model=target.model,
                         provider=target.provider,
                         use_semantic=use_semantic_cache,
                     )
-                return JSONResponse(content={"response": text})
+
+                    latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+                    logger.info(
+                        "successful non-streamed LLM response",
+                        extra={
+                            "metadata": metadata,
+                            "stream": stream,
+                            "provider": target.provider,
+                            "model": target.model,
+                            "input_tokens": result["input_tokens"],
+                            "output_tokens": result["output_tokens"],
+                            "latency_ms": latency_ms,
+                        },
+                    )
+                return JSONResponse(content={"response": result["response"]})
             case StreamingSuccess(chunks=g):
                 return StreamingResponse(g, media_type="text/event-stream")
             case Abort(status_code=code, message=msg):
+                latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+                logger.warning(
+                    "abort",
+                    extra={
+                        "metadata": metadata,
+                        "stream": stream,
+                        "status_code": code,
+                        "error_message": msg,
+                        "latency_ms": latency_ms,
+                    },
+                )
                 return JSONResponse(status_code=code, content={"error": msg})
             case Failover(status_code=code):
                 last_status = code
+                logger.info("failover", extra={"metadata": metadata, "stream": stream})
                 continue
 
     if last_status is not None:
+        latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+        logger.warning(
+            "targets exhausted",
+            extra={
+                "metadata": metadata,
+                "status_code": last_status,
+                "error_message": "service unavailable",
+                "latency_ms": latency_ms,
+            },
+        )
         return JSONResponse(status_code=last_status, content={"error": "service unavailable"})
 
     return None

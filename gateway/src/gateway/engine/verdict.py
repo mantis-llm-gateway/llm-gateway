@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class CompleteSuccess:
-    response: str
+    response: dict
 
 
 @dataclass(frozen=True)
