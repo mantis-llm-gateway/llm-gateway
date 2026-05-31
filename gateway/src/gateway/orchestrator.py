@@ -19,11 +19,18 @@ async def _handle_stream(chunks: AsyncIterator[str]) -> AsyncGenerator[str, None
             yield chunk
     except ClientError as e:
         if bedrock_error_code(e) == "ChunkTimeOutException":
-            yield "\nerror: provider timeout\n"
+            logger.warning("stream chunk timeout", exc_info=e)
+            yield "\nerror: provider timeout - check logs for more information\n"
             return
         else:
-            yield "\nerror: provider failure\n"
+            logger.warning("stream client error", exc_info=e)
+            yield "\nerror: provider failure - check logs for more information\n"
             return
+    except Exception as e:
+        logger.warning("stream error", exc_info=e)
+        yield "\nerror: check logs for more information\n"
+        return
+
 
 logger = logging.getLogger(__name__)
 
