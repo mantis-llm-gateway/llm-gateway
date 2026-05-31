@@ -17,7 +17,10 @@ llm-gateway/
 - Python 3.12
 - FastAPI
 - uv
+- Node.js / npm
+- React / Vite
 - Ruff
+- ESLint
 - Mypy
 - pre-commit
 
@@ -34,6 +37,13 @@ cd gateway
 uv sync
 ```
 
+Install dashboard dependencies:
+
+```sh
+cd dashboard
+npm ci
+```
+
 Install git hooks from the repository root:
 
 ```sh
@@ -46,6 +56,9 @@ run on committed files):
 ```sh
 uv run pre-commit run --all-files
 ```
+
+The hook runs Python checks, Terraform formatting/validation, and
+`npm --prefix dashboard run lint` for dashboard JavaScript/TypeScript changes.
 
 Please follow the `ticket-number/contributer-initials/title` convention to name branches.
 
@@ -64,6 +77,52 @@ For local gateway development:
 cd gateway
 export AWS_PROFILE=gw
 uv run uvicorn gateway.main:app --reload --app-dir src
+```
+
+## Routing Config Dashboard
+
+The dashboard edits the routing config stored in AWS Systems Manager Parameter Store.
+The running FastAPI process loads config once at startup and keeps using that active
+in-memory config until the process is restarted.
+
+`GET /config` returns:
+
+```json
+{
+  "config": {},
+  "reload_required": false
+}
+```
+
+When the dashboard saves changes, `POST /config` validates the new config and writes it
+to Parameter Store. It does not replace the already-loaded FastAPI context config. If the
+persisted config differs from the active config, the endpoint returns
+`"reload_required": true`.
+
+To apply saved config changes to a running ECS service, manually force a new deployment:
+
+```sh
+aws ecs update-service --profile gw \
+  --cluster gw-<your-name>-cluster \
+  --service gw-<your-name>-gateway-service \
+  --force-new-deployment
+```
+
+### Dashboard static files
+
+Terraform creates a private S3 bucket for dashboard build files and injects its
+name into the gateway task as `DASHBOARD_S3_BUCKET`. The gateway serves `GET /`
+and dashboard asset paths by reading objects from that bucket; API routes such as
+`/health`, `/config`, and `/v1/chat/completions` still resolve before the
+dashboard fallback.
+
+After building the dashboard, upload the generated files to the bucket output by
+Terraform:
+
+```sh
+npm --prefix dashboard run build
+aws s3 sync gateway/src/gateway/dashboard_dist/ \
+  s3://$(terraform -chdir=infra output -raw dashboard_bucket_name)/
 ```
 
 ## Infrastructure (Terraform)
@@ -130,7 +189,13 @@ terraform apply -var="owner=<your-name>"
 
 ### After apply: populate Parameter Store
 
-Terraform automatically populates `cache/endpoint` and `cache/port` from the ElastiCache cluster outputs. The following must be populated manually as they are either secrets or reference resources outside this Terraform stack:
+Terraform automatically populates `cache/endpoint`, `cache/port`, and
+`routing/config`. The routing config parameter is seeded from
+`gateway/src/gateway/config.json`; later dashboard edits are intentionally ignored by
+Terraform so a future `terraform apply` does not overwrite saved UI changes.
+
+The following must be populated manually as they are either secrets or reference
+resources outside this Terraform stack:
 
 ```sh
 aws ssm put-parameter --name /gw-<your-name>/cache/auth-token \

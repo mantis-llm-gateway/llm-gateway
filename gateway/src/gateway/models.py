@@ -21,7 +21,7 @@ class TargetConfig(BaseModel):
 
 
 class RoutingRuleConfig(BaseModel):
-    id: str
+    id: str | None = None
     name: str
     match: RuleMatchConfig
     targets: list[TargetConfig]
@@ -48,6 +48,11 @@ class Config(BaseModel):
     default_model: str
     cooldown_ttl: int
     prompt_cache: PromptCacheConfig
+
+
+class ConfigResponse(BaseModel):
+    config: Config
+    reload_required: bool
 
 
 class ChatMessageRequest(BaseModel):

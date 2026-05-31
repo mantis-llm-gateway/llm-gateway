@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     aws_region: str = Field(default="us-east-1")
     log_level: str = Field(default="INFO")
 
+    # Routing config
+    parameter_store_config_key: str | None = Field(default=None)
+
+    # Dashboard static assets
+    dashboard_s3_bucket: str | None = Field(default=None)
+    dashboard_s3_prefix: str = Field(default="")
+
     # Bedrock
     bedrock_guardrail_id: str | None = Field(default=None)
     bedrock_guardrail_version: str | None = Field(default=None)

@@ -111,6 +111,10 @@ Run all hooks manually:
 uv run pre-commit run --all-files
 ```
 
+The root hook also runs the dashboard ESLint check when dashboard JavaScript or
+TypeScript files change. Install dashboard dependencies with `npm ci` in `../dashboard`
+before running all hooks.
+
 ### Routing and cooldown
 
 When an LLM model returns a 429 "Too Many Requests" error, the gateway will add a key that

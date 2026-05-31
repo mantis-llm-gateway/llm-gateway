@@ -17,8 +17,18 @@ repos:
     hooks:
       - id: mypy
 
+  - repo: local
+    hooks:
+      - id: dashboard-lint
+        name: dashboard eslint
+        entry: npm --prefix dashboard run lint
+        language: system
+        files: ^dashboard/.*\.(js|jsx|ts|tsx)$
+        pass_filenames: false
+
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.105.0
     hooks:
       - id: terraform_fmt
       - id: terraform_validate
+        stages: [manual]
