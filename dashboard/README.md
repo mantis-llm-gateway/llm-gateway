@@ -22,6 +22,7 @@ Run the gateway separately from `../gateway`.
 ## Checks
 
 ```sh
+npm test
 npm run lint
 npm run build
 ```
