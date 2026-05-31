@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from botocore.exceptions import ClientError
@@ -33,7 +34,7 @@ class FakeS3Body:
 
 
 class FakeS3Client:
-    def __init__(self, objects: dict[str, tuple[bytes, str]]) -> None:
+    def __init__(self, objects: dict[str, tuple[bytes, str] | tuple[bytes, str, dict]]) -> None:
         self.objects = objects
         self.get_object_calls: list[dict] = []
 
@@ -51,8 +52,12 @@ class FakeS3Client:
                 {"Error": {"Code": "NoSuchKey", "Message": "Not found"}},
                 "GetObject",
             )
-        content, content_type = self.objects[key]
-        return {"Body": FakeS3Body(content), "ContentType": content_type}
+        content, content_type, *metadata = self.objects[key]
+        return {
+            "Body": FakeS3Body(content),
+            "ContentType": content_type,
+            **(metadata[0] if metadata else {}),
+        }
 
 
 class FakeAioboto3Session:
@@ -158,6 +163,44 @@ def test_dashboard_serves_asset_from_s3(client, test_context, monkeypatch):
     assert response.text == "console.log('hello')"
     assert response.headers["content-type"].startswith("text/javascript")
     assert fake_s3.get_object_calls == [{"Bucket": "gw-test-dashboard", "Key": "assets/app.js"}]
+
+
+def test_dashboard_normalizes_s3_last_modified_header(client, test_context, monkeypatch):
+    fake_s3 = FakeS3Client(
+        {
+            "index.html": (
+                b"<div id='root'></div>",
+                "text/html",
+                {"LastModified": datetime(2026, 5, 31, 10, 0, tzinfo=timezone(timedelta(hours=1)))},
+            )
+        }
+    )
+    test_context.settings.dashboard_s3_bucket = "gw-test-dashboard"
+    monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(s3=fake_s3))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert response.headers["last-modified"] == "Sun, 31 May 2026 09:00:00 GMT"
+
+
+def test_dashboard_omits_naive_s3_last_modified_header(client, test_context, monkeypatch):
+    fake_s3 = FakeS3Client(
+        {
+            "index.html": (
+                b"<div id='root'></div>",
+                "text/html",
+                {"LastModified": datetime(2026, 5, 31, 9, 0)},
+            )
+        }
+    )
+    test_context.settings.dashboard_s3_bucket = "gw-test-dashboard"
+    monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(s3=fake_s3))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "last-modified" not in response.headers
 
 
 def test_dashboard_falls_back_to_s3_index_for_spa_routes(client, test_context, monkeypatch):

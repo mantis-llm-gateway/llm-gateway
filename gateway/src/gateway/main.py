@@ -5,6 +5,7 @@ import secrets
 import sys
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
+from datetime import UTC
 from email.utils import format_datetime
 from pathlib import Path
 from posixpath import join as join_s3_key
@@ -132,8 +133,9 @@ async def _s3_dashboard_response(path: str, settings: Settings) -> Response:
     ):
         if source in response:
             headers[target] = response[source]
-    if "LastModified" in response:
-        headers["Last-Modified"] = format_datetime(response["LastModified"], usegmt=True)
+    last_modified = response.get("LastModified")
+    if last_modified is not None and last_modified.tzinfo is not None:
+        headers["Last-Modified"] = format_datetime(last_modified.astimezone(UTC), usegmt=True)
 
     return Response(content=body, media_type=media_type, headers=headers)
 
