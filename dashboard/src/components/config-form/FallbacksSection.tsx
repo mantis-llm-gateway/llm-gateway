@@ -11,6 +11,7 @@ interface FallbacksSectionProps {
 export function FallbacksSection({ control, register }: FallbacksSectionProps) {
   const { fields, append, remove } = useFieldArray({ control, name: 'fallbacks' })
   const aliases = useWatch({ control, name: 'aliases' }) ?? []
+  const fallbacks = useWatch({ control, name: 'fallbacks' }) ?? []
 
   return (
     <>
@@ -18,6 +19,12 @@ export function FallbacksSection({ control, register }: FallbacksSectionProps) {
       {fields.map((field, index) => (
         <div key={field.id} className="field-row">
           <select {...register(`fallbacks.${index}.value`)}>
+            {fallbacks[index]?.value &&
+              !aliases.some(alias => alias.name === fallbacks[index].value) && (
+                <option value={fallbacks[index].value}>
+                  {fallbacks[index].value} (missing alias)
+                </option>
+              )}
             {aliases.map(alias => (
               <option key={alias.name} value={alias.name}>
                 {alias.name}

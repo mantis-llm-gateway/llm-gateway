@@ -10,6 +10,8 @@ interface GeneralSettingsSectionProps {
 
 export function GeneralSettingsSection({ control, register }: GeneralSettingsSectionProps) {
   const aliases = useWatch({ control, name: 'aliases' }) ?? []
+  const defaultModel = useWatch({ control, name: 'default_model' })
+  const defaultModelIsMissing = defaultModel && !aliases.some(alias => alias.name === defaultModel)
 
   return (
     <>
@@ -18,6 +20,9 @@ export function GeneralSettingsSection({ control, register }: GeneralSettingsSec
       <div className="field-row">
         <label>Default Model</label>
         <select {...register('default_model')}>
+          {defaultModelIsMissing && (
+            <option value={defaultModel}>{defaultModel} (missing alias)</option>
+          )}
           {aliases.map(alias => (
             <option key={alias.name} value={alias.name}>
               {alias.name}
