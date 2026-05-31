@@ -52,7 +52,9 @@ export default function App() {
             status={status}
             onSubmit={saveConfig}
           />
-        ) : null}
+                 <p>
+            {status?.type === "error" ? status.message : "Could not load the dashboard. Please try again..." }
+          </p>
       </div>
     </>
   )
