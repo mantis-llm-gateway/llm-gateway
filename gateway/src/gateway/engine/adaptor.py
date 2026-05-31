@@ -224,7 +224,7 @@ class ProviderAdaptor:
                             output_tokens = usage.get("outputTokens", 0)
                     except TimeoutError:
                         raise ClientError(
-                            load_chunk_time_out_response(), "ReceiveNextChunk"
+                            load_chunk_time_out_response(stream_idle_timeout), "ReceiveNextChunk"
                         ) from TimeoutError
                     except StopAsyncIteration:
                         break

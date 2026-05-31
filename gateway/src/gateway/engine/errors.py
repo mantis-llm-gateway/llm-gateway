@@ -55,9 +55,12 @@ def classify_bedrock_error(e: ClientError) -> tuple[ErrorAction, int]:
     return ErrorAction.FAILOVER, status
 
 
-def load_chunk_time_out_response() -> "_ClientErrorResponseTypeDef":
+def load_chunk_time_out_response(stream_idle_timeout) -> "_ClientErrorResponseTypeDef":
     return {
-        "Error": {"Code": "ChunkTimeOutException", "Message": "The LLM provider timed out"},
+        "Error": {
+            "Code": "ChunkTimeOutException",
+            "Message": f"The LLM provider sent no chunks for {stream_idle_timeout} seconds",
+        },
         "ResponseMetadata": {
             "HTTPStatusCode": 429,
             "RequestId": "",
