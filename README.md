@@ -9,7 +9,8 @@ llm-gateway/
 ├── dashboard/    # Frontend UI
 ├── docs/         # Architecture and technical documentation
 ├── gateway/      # FastAPI backend service
-└── infra/        # Terraform / infrastructure code
+├── infra/        # Terraform / infrastructure code
+└── scripts/      # Infrastructure bootstrap and deployment scripts
 ```
 
 ## Technology Stack
@@ -103,8 +104,8 @@ To apply saved config changes to a running ECS service, manually force a new dep
 
 ```sh
 aws ecs update-service --profile gw \
-  --cluster gw-<your-name>-cluster \
-  --service gw-<your-name>-gateway-service \
+  --cluster gw-<namespace>-cluster \
+  --service gw-<namespace>-gateway-service \
   --force-new-deployment
 ```
 
@@ -116,23 +117,25 @@ and dashboard asset paths by reading objects from that bucket; API routes such a
 `/health`, `/config`, and `/v1/chat/completions` still resolve before the
 dashboard fallback.
 
-After building the dashboard, upload the generated files to the bucket output by
-Terraform:
+The deployment script builds the dashboard and uploads the generated files to the
+Terraform-managed bucket:
 
 ```sh
-npm --prefix dashboard run build
-aws s3 sync gateway/src/gateway/dashboard_dist/ \
-  s3://$(terraform -chdir=infra output -raw dashboard_bucket_name)/
+./scripts/deploy.sh
 ```
 
 ## Infrastructure (Terraform)
 
-The AWS infrastructure lives in `infra/`. Each developer can spin up their own namespaced environment by passing their name as a Terraform variable.
+The AWS infrastructure lives in `infra/`. Terraform files are split by concern but
+still form one root module. Each deployment has an `owner` tag and a `namespace` used
+in resource names and SSM paths.
 
 ### Prerequisites
 
 - Terraform >= 1.15
 - AWS CLI installed and configured with a `gw` profile
+- Docker
+- Node.js / npm
 
 An AWS profile is a named set of credentials stored locally on your machine. To create the `gw` profile:
 
@@ -152,74 +155,125 @@ To verify the profile is set up correctly:
 aws configure list --profile gw
 ```
 
-### Before your first `terraform apply`
+### Bootstrap remote state
 
-**1. Generate a cache auth token**
+Terraform state contains sensitive values, including the plaintext ElastiCache auth
+token. Bootstrap a separate private, encrypted, versioned S3 bucket before applying
+the application infrastructure:
 
-ElastiCache requires an AUTH token (password) that you create yourself. Generate one:
+```sh
+./scripts/bootstrap_state_bucket.sh <namespace>
+```
+
+Set `AWS_PROFILE` or `AWS_REGION` when using values other than the script defaults
+of `gw` and `us-east-1`.
+
+The script prints the matching `terraform init` command. Run that command from the
+repository root. It includes `-migrate-state`, so it also migrates an existing local
+state file when adopting the remote backend.
+
+The state bucket is intentionally created outside the application Terraform module.
+Running `terraform destroy` for the application will not destroy the state bucket.
+
+### Configure Terraform
+
+ElastiCache requires an AUTH token. Generate one:
 
 ```sh
 openssl rand -hex 32
 ```
 
-Keep the output — you'll need it in the next step and again when populating Parameter Store.
-
-**2. Provide the token to Terraform**
-
-Either create an `infra/terraform.tfvars` file (make sure it's git-ignored):
+Create `infra/terraform.tfvars`; this file is git-ignored:
 
 ```hcl
+owner            = "<your-name>"
+namespace        = "<environment-name>"
 cache_auth_token = "your-generated-token"
 ```
 
-Or export it as an environment variable:
+The token is stored as an SSM `SecureString` for the running service, but Terraform
+must also provide it to ElastiCache. As a result, it remains present in Terraform
+state. Restrict access to the bootstrapped state bucket.
+
+Variables can also be passed through `TF_VAR_*` environment variables:
 
 ```sh
+export TF_VAR_owner="<your-name>"
+export TF_VAR_namespace="<environment-name>"
 export TF_VAR_cache_auth_token="your-generated-token"
 ```
 
-**3. Apply**
+Optional variables include `aws_region`, `aws_profile`, `ecs_desired_count`,
+`container_image_tag`, `log_retention_days`, `cache_node_type`,
+`allowed_http_cidrs`, and the public and private subnet CIDRs.
+
+### Existing local deployments
+
+Before the first plan or apply after upgrading an environment created by the original
+Terraform file:
+
+1. Set `namespace` to the previous `owner` value to preserve resource names.
+2. Run the bootstrap script and its printed `terraform init -migrate-state` command.
+3. Import the manually created cache auth parameter so Terraform can manage it:
 
 ```sh
-cd infra
-terraform init
-terraform plan -var="owner=<your-name>"
-terraform apply -var="owner=<your-name>"
+terraform -chdir=infra import \
+  aws_ssm_parameter.cache_auth_token \
+  /gw-<namespace>/cache/auth-token
 ```
 
-### After apply: populate Parameter Store
+Set `cache_auth_token` to the existing ElastiCache token before applying. Importing
+the parameter adopts it without overwriting its value. Fresh deployments can skip
+this migration step.
 
-Terraform automatically populates `cache/endpoint`, `cache/port`, and
-`routing/config`. The routing config parameter is seeded from
+### Apply
+
+```sh
+terraform -chdir=infra plan
+terraform -chdir=infra apply
+```
+
+The initial ECS desired count defaults to `0`, allowing infrastructure creation
+before an image exists.
+
+### Deploy
+
+After applying the infrastructure, run:
+
+```sh
+./scripts/deploy.sh
+```
+
+The deploy script also reads `AWS_PROFILE` and `AWS_REGION`, defaulting to `gw` and
+`us-east-1`.
+
+The script builds and uploads dashboard files, builds and pushes the ARM64 gateway
+image to the Terraform-created ECR repository, and scales the ECS service to one
+task. Terraform ignores subsequent `desired_count` changes so a later apply will not
+scale the deployed service back to zero.
+
+Terraform exposes useful deployment details:
+
+```sh
+terraform -chdir=infra output
+```
+
+### Parameter Store
+
+Terraform populates `cache/auth-token`, `cache/endpoint`, `cache/port`,
+`bedrock/guardrail-id`, and `routing/config`. The routing config is seeded from
 `gateway/src/gateway/config.json`; later dashboard edits are intentionally ignored by
 Terraform so a future `terraform apply` does not overwrite saved UI changes.
-
-The following must be populated manually as they are either secrets or reference
-resources outside this Terraform stack:
-
-```sh
-aws ssm put-parameter --name /gw-<your-name>/cache/auth-token \
-  --value "<your-generated-token>" --type SecureString
-
-aws ssm put-parameter --name /gw-<your-name>/bedrock/primary-chat-model \
-  --value "us.anthropic.claude-3-5-haiku-20241022-v1:0" --type String
-```
 
 ### Tearing down
 
 To destroy all Terraform-managed infrastructure for your environment:
 
 ```sh
-cd infra
-terraform destroy -var="owner=<your-name>"
+terraform -chdir=infra destroy
 ```
 
-Note: the two manually created Parameter Store entries (`cache/auth-token` and `bedrock/primary-chat-model`) are not managed by Terraform and must be deleted manually if you want a clean slate:
-
-```sh
-aws ssm delete-parameter --name /gw-<your-name>/cache/auth-token
-aws ssm delete-parameter --name /gw-<your-name>/bedrock/primary-chat-model
-```
+The separately bootstrapped state bucket remains in place intentionally.
 
 ## Documentation
 
