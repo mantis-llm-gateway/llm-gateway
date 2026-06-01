@@ -1,3 +1,4 @@
+import json
 import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -27,7 +28,7 @@ def _extra(
     **kwargs,
 ) -> dict:
     return {
-        "metadata": metadata,
+        "metadata": json.dumps(metadata, sort_keys=True),
         "stream": stream,
         "provider": target.provider,
         "model": target.model,

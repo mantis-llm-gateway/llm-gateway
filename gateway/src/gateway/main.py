@@ -145,7 +145,9 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
 
     handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(JsonFormatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    handler.setFormatter(
+        JsonFormatter("%(asctime)s %(levelname)s %(name)s %(message)s %(request_id)s")
+    )
     handler.addFilter(RequestIdFilter())
     logging.basicConfig(level=settings.log_level.upper(), handlers=[handler])
 

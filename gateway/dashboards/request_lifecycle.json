@@ -1,0 +1,52 @@
+{
+    "variables": [
+        {
+            "type": "pattern",
+            "pattern": "{{request_id}}",
+            "inputType": "input",
+            "id": "request_id",
+            "label": "Request ID",
+            "visible": true,
+            "defaultValue": ""
+        }
+    ],
+    "widgets": [
+        {
+            "type": "text",
+            "x": 0, "y": 0, "width": 24, "height": 1,
+            "properties": { "markdown": "# Mantis — Request Lifecycle" }
+        },
+        {
+            "type": "text",
+            "x": 0, "y": 1, "width": 24, "height": 1,
+            "properties": {
+                "markdown": "Each row is the terminal event for one request. To trace a single request end-to-end, copy its `request_id` into the **Request ID** filter above — the All Events table will narrow to that request."
+            }
+        },
+        {
+            "type": "log",
+            "x": 0, "y": 2, "width": 24, "height": 18,
+            "properties": {
+                "title": "Recent Requests",
+                "region": "us-east-1",
+                "view": "table",
+                "query": "SOURCE '/ecs/gw-sam/gateway' | fields @timestamp, request_id, message as outcome, provider, model, latency_ms, input_tokens, output_tokens, status_code, error_message | filter message in [\"cache hit\", \"successful non-streamed LLM response\", \"stream completed\", \"abort\", \"targets exhausted\", \"guardrail intervened\", \"mid-stream error\"] | sort @timestamp desc | limit 100"
+            }
+        },
+        {
+            "type": "text",
+            "x": 0, "y": 20, "width": 24, "height": 1,
+            "properties": { "markdown": "## All Events (Drill-down)" }
+        },
+        {
+            "type": "log",
+            "x": 0, "y": 21, "width": 24, "height": 12,
+            "properties": {
+                "title": "All Gateway Events",
+                "region": "us-east-1",
+                "view": "table",
+                "query": "SOURCE '/ecs/gw-sam/gateway' | fields @timestamp, request_id, message, provider, model, latency_ms, err_code, error_message, stream | filter message in [\"cache hit\", \"successful non-streamed LLM response\", \"stream completed\", \"abort\", \"targets exhausted\", \"guardrail intervened\", \"mid-stream error\", \"stream started\", \"failover\", \"retry target\", \"target put into cooldown\", \"bedrock call failed\", \"exact cache hit\", \"exact cache lookup miss\", \"semantic cache hit\", \"semantic cache lookup miss\", \"set key in exact cache\", \"set key in semantic cache\"] | filter request_id = \"{{request_id}}\" | sort @timestamp asc | limit 200"
+            }
+        }
+    ]
+}
