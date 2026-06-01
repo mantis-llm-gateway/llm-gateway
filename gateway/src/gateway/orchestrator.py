@@ -142,7 +142,7 @@ async def orchestrate(
             case StreamingSuccess(chunks=g):
                 return StreamingResponse(
                     _handle_stream(g),
-                    media_type="text/event-stream",
+                    media_type="text/plain",
                 )
             case Abort(status_code=code, message=msg):
                 latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
