@@ -44,6 +44,7 @@ async def orchestrate(
     cache_prompt = _conversation_cache_prompt(messages, system)
     prompt = cache_prompt
     use_semantic_cache = _should_use_semantic_cache(messages, ctx)
+    skip_cache = _should_skip_cache(temperature, ctx)
 
     last_status: int | None = None
     for target in resolved_chain:
@@ -53,7 +54,7 @@ async def orchestrate(
         if await ctx.redis.exists(f"gateway:cooldown:{target.provider}:{target.model}"):
             continue
 
-        if not stream:
+        if not stream and not skip_cache:
             cached = await ctx.prompt_cache.get(
                 prompt=cache_prompt,
                 model=target.model,
@@ -93,13 +94,14 @@ async def orchestrate(
         match verdict:
             case CompleteSuccess(response=result):
                 if not stream:
-                    await ctx.prompt_cache.set(
-                        prompt=prompt,
-                        response=result["response"],
-                        model=target.model,
-                        provider=target.provider,
-                        use_semantic=use_semantic_cache,
-                    )
+                    if not skip_cache:
+                        await ctx.prompt_cache.set(
+                            prompt=prompt,
+                            response=result["response"],
+                            model=target.model,
+                            provider=target.provider,
+                            use_semantic=use_semantic_cache,
+                        )
 
                     latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
                     logger.info(
@@ -167,3 +169,8 @@ def _should_use_semantic_cache(messages: list[ChatMessageRequest], ctx: AppConte
     return (
         semantic_config is not None and len(messages) <= semantic_config.conversation_size_threshold
     )
+
+
+def _should_skip_cache(temperature: float | None, ctx: AppContext) -> bool:
+    threshold = ctx.config.prompt_cache.temperature_threshold
+    return temperature is not None and temperature > threshold

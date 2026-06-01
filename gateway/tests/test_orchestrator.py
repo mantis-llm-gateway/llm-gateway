@@ -98,6 +98,56 @@ async def test_cache_prompt_includes_system_prompt(test_context):
 
 
 @pytest.mark.asyncio
+async def test_high_temperature_skips_cache_get_and_set(test_context):
+    test_context.prompt_cache.get = AsyncMock(return_value=None)
+    test_context.prompt_cache.set = AsyncMock()
+
+    with patch(
+        "gateway.orchestrator.execute_attempt",
+        new=AsyncMock(
+            return_value=CompleteSuccess(
+                response={"response": "hello", "input_tokens": 0, "output_tokens": 0}
+            )
+        ),
+    ):
+        await orchestrate(
+            {"task-type": "code_generation"},
+            messages=make_messages(),
+            stream=False,
+            ctx=test_context,
+            temperature=0.9,
+        )
+
+    assert test_context.prompt_cache.get.await_count == 0
+    assert test_context.prompt_cache.set.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_temperature_at_threshold_still_uses_cache(test_context):
+    test_context.prompt_cache.get = AsyncMock(return_value=None)
+    test_context.prompt_cache.set = AsyncMock()
+
+    with patch(
+        "gateway.orchestrator.execute_attempt",
+        new=AsyncMock(
+            return_value=CompleteSuccess(
+                response={"response": "hello", "input_tokens": 0, "output_tokens": 0}
+            )
+        ),
+    ):
+        await orchestrate(
+            {"task-type": "code_generation"},
+            messages=make_messages(),
+            stream=False,
+            ctx=test_context,
+            temperature=0.3,
+        )
+
+    assert test_context.prompt_cache.get.await_count == 1
+    assert test_context.prompt_cache.set.await_count == 1
+
+
+@pytest.mark.asyncio
 async def test_long_conversation_skips_semantic_cache_only(test_context):
     test_context.config.prompt_cache.semantic = SemanticCacheConfig(
         similarity_threshold=0.8,
