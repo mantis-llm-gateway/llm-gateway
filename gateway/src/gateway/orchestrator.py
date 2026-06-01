@@ -87,6 +87,7 @@ async def orchestrate(
             temperature=temperature,
             max_tokens=max_tokens,
             system=system,
+            stream_idle_timeout=ctx.config.stream_idle_timeout,
         )
 
         match verdict:

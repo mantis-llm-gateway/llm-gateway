@@ -76,6 +76,7 @@ class FakeAdaptor:
         self,
         model_id: str,
         messages: list,
+        stream_idle_timeout: int,
         *,
         temperature: float | None = None,
         max_tokens: int | None = None,
@@ -145,6 +146,7 @@ def test_config() -> Config:
         fallbacks=["fallback"],
         cooldown_ttl=60,
         prompt_cache=PromptCacheConfig(ttl_seconds=60, temperature_threshold=0.3),
+        stream_idle_timeout=10,
     )
 
 

@@ -128,6 +128,7 @@ async def execute_attempt(
     redis: Redis,
     target_retries: int,
     cooldown_ttl: int,
+    stream_idle_timeout: int,
     temperature: float | None = None,
     max_tokens: int | None = None,
     system: str | None = None,
@@ -146,6 +147,7 @@ async def execute_attempt(
                 stream_result = await adaptor.stream_request(
                     model_id,
                     provider_messages,
+                    stream_idle_timeout,
                     temperature=temperature,
                     max_tokens=max_tokens,
                     system=system,

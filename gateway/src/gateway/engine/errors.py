@@ -50,3 +50,16 @@ def classify_bedrock_error(e: ClientError) -> tuple[ErrorAction, int]:
     if status >= 500:
         return ErrorAction.RETRY, status
     return ErrorAction.FAILOVER, status
+
+
+def load_chunk_time_out_response() -> dict[str, Any]:
+    return {
+        "Error": {"Code": "ThrottlingException", "Message": "The LLM provider timed out"},
+        "ResponseMetadata": {
+            "HTTPStatusCode": 429,
+            "RequestId": "",
+            "HostId": "",
+            "HTTPHeaders": {},
+            "RetryAttempts": 0,
+        },
+    }

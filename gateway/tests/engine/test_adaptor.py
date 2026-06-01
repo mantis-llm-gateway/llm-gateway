@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from typing import TypedDict
 from unittest.mock import AsyncMock, MagicMock
@@ -9,6 +10,7 @@ from gateway.engine import Message, ProviderAdaptor
 
 MODEL_ID = "google.gemma-3-4b-it"
 MESSAGES: list[Message] = [{"role": "user", "content": [{"text": "Hello"}]}]
+STREAM_IDLE_TIMEOUT = 1
 
 
 class _TextBlock(TypedDict):
@@ -50,6 +52,14 @@ async def _async_events(*events: _ContentBlockDeltaEvent) -> AsyncIterator[_Cont
         yield event
 
 
+async def _async_timeout_events(
+    *events: _ContentBlockDeltaEvent,
+) -> AsyncIterator[_ContentBlockDeltaEvent]:
+    for event in events:
+        await asyncio.sleep(STREAM_IDLE_TIMEOUT + 1 / 1000)
+        yield event
+
+
 def make_non_stream_bedrock_response(text: str) -> NonStreamResponse:
     return {
         "output": {"message": {"content": [{"text": text}]}},
@@ -60,6 +70,11 @@ def make_non_stream_bedrock_response(text: str) -> NonStreamResponse:
 def make_stream_bedrock_response(text: str) -> StreamResponse:
     event: _ContentBlockDeltaEvent = {"contentBlockDelta": {"delta": {"text": text}}}
     return {"stream": _async_events(event)}
+
+
+def make_stream_bedrock_timedout_response(text: str) -> StreamResponse:
+    event: _ContentBlockDeltaEvent = {"contentBlockDelta": {"delta": {"text": text}}}
+    return {"stream": _async_timeout_events(event)}
 
 
 def make_client_error() -> ClientError:
@@ -203,8 +218,8 @@ async def test_stream_request_success(provider_adaptor: ProviderAdaptor):
     client = make_mock_bedrock_client(provider_adaptor)
     client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
 
-    result = await provider_adaptor.stream_request(MODEL_ID, MESSAGES)
-    results = [token async for token in result]
+    stream = await provider_adaptor.stream_request(MODEL_ID, MESSAGES, STREAM_IDLE_TIMEOUT)
+    results = [token async for token in stream]
 
     assert results == ["mock response"]
 
@@ -216,8 +231,8 @@ async def test_stream_request_omits_guardrail_config_when_not_set(
     client = make_mock_bedrock_client(provider_adaptor)
     client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
 
-    result = await provider_adaptor.stream_request(MODEL_ID, MESSAGES)
-    _ = [token async for token in result]
+    stream = await provider_adaptor.stream_request(MODEL_ID, MESSAGES, STREAM_IDLE_TIMEOUT)
+    _ = [token async for token in stream]
 
     _, kwargs = client.converse_stream.call_args
     assert "guardrailConfig" not in kwargs
@@ -230,8 +245,10 @@ async def test_stream_request_includes_guardrail_config(
     client = make_mock_bedrock_client(provider_adaptor_with_guardrails)
     client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
 
-    result = await provider_adaptor_with_guardrails.stream_request(MODEL_ID, MESSAGES)
-    _ = [token async for token in result]
+    stream = await provider_adaptor_with_guardrails.stream_request(
+        MODEL_ID, MESSAGES, STREAM_IDLE_TIMEOUT
+    )
+    _ = [token async for token in stream]
 
     _, kwargs = client.converse_stream.call_args
     assert kwargs["guardrailConfig"] == {
@@ -248,7 +265,7 @@ async def test_stream_request_client_error_propagates(provider_adaptor: Provider
     client.converse_stream = AsyncMock(side_effect=make_client_error())
 
     with pytest.raises(ClientError):
-        await provider_adaptor.stream_request(MODEL_ID, MESSAGES)
+        await provider_adaptor.stream_request(MODEL_ID, MESSAGES, STREAM_IDLE_TIMEOUT)
 
 
 @pytest.mark.asyncio
@@ -259,10 +276,22 @@ async def test_stream_request_includes_inference_config_and_system_when_set(
     client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
 
     result = await provider_adaptor.stream_request(
-        MODEL_ID, MESSAGES, temperature=0.5, max_tokens=256, system="be brief"
+        MODEL_ID, MESSAGES, STREAM_IDLE_TIMEOUT, temperature=0.5, max_tokens=256, system="be brief"
     )
     _ = [token async for token in result]
 
     _, kwargs = client.converse_stream.call_args
     assert kwargs["inferenceConfig"] == {"temperature": 0.5, "maxTokens": 256}
     assert kwargs["system"] == [{"text": "be brief"}]
+
+
+@pytest.mark.asyncio
+async def test_stream_idle_timeout(provider_adaptor: ProviderAdaptor):
+    client = make_mock_bedrock_client(provider_adaptor)
+    client.converse_stream = AsyncMock(
+        return_value=make_stream_bedrock_timedout_response("mock response")
+    )
+
+    with pytest.raises(ClientError):
+        stream = await provider_adaptor.stream_request(MODEL_ID, MESSAGES, STREAM_IDLE_TIMEOUT)
+        _ = [token async for token in stream]

@@ -1,10 +1,14 @@
 import sys
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from types import TracebackType
 from typing import Any, NotRequired, Protocol, TypedDict, cast
 
-import aioboto3  # type: ignore
+import aioboto3
+from botocore.exceptions import ClientError
+
+from gateway.engine.errors import load_chunk_time_out_response
 
 
 class _Text(TypedDict):
@@ -173,6 +177,7 @@ class ProviderAdaptor:
         self,
         model_id: str,
         messages: list[Message],
+        stream_idle_timeout: int,
         *,
         temperature: float | None = None,
         max_tokens: int | None = None,
@@ -203,8 +208,12 @@ class ProviderAdaptor:
             guardrail_trace: dict = {}
             input_tokens = 0
             output_tokens = 0
+            deadline = datetime.now(UTC) + timedelta(seconds=stream_idle_timeout)
             try:
                 async for event in response["stream"]:
+                    chunk_arrival_time = datetime.now(UTC)
+                    if chunk_arrival_time > deadline:
+                        raise ClientError(load_chunk_time_out_response(), "ReceiveNextChunk")
                     if "messageStop" in event:
                         stop_reason = event["messageStop"].get("stopReason")
                     elif "metadata" in event:
