@@ -133,6 +133,72 @@ async def test_send_request_client_error_propagates(provider_adaptor: ProviderAd
 
 
 @pytest.mark.asyncio
+async def test_send_request_includes_inference_config_when_set(provider_adaptor: ProviderAdaptor):
+    client = make_mock_bedrock_client(provider_adaptor)
+    client.converse = AsyncMock(return_value=make_non_stream_bedrock_response("mock response"))
+
+    await provider_adaptor.send_request(MODEL_ID, MESSAGES, temperature=0.5, max_tokens=256)
+
+    _, kwargs = client.converse.call_args
+    assert kwargs["inferenceConfig"] == {"temperature": 0.5, "maxTokens": 256}
+
+
+@pytest.mark.asyncio
+async def test_send_request_omits_inference_config_when_unset(provider_adaptor: ProviderAdaptor):
+    client = make_mock_bedrock_client(provider_adaptor)
+    client.converse = AsyncMock(return_value=make_non_stream_bedrock_response("mock response"))
+
+    await provider_adaptor.send_request(MODEL_ID, MESSAGES)
+
+    _, kwargs = client.converse.call_args
+    assert "inferenceConfig" not in kwargs
+
+
+@pytest.mark.asyncio
+async def test_send_request_includes_only_set_inference_fields(provider_adaptor: ProviderAdaptor):
+    client = make_mock_bedrock_client(provider_adaptor)
+    client.converse = AsyncMock(return_value=make_non_stream_bedrock_response("mock response"))
+
+    await provider_adaptor.send_request(MODEL_ID, MESSAGES, temperature=0.5)
+
+    _, kwargs = client.converse.call_args
+    assert kwargs["inferenceConfig"] == {"temperature": 0.5}
+
+
+@pytest.mark.asyncio
+async def test_send_request_includes_zero_temperature(provider_adaptor: ProviderAdaptor):
+    client = make_mock_bedrock_client(provider_adaptor)
+    client.converse = AsyncMock(return_value=make_non_stream_bedrock_response("mock response"))
+
+    await provider_adaptor.send_request(MODEL_ID, MESSAGES, temperature=0.0)
+
+    _, kwargs = client.converse.call_args
+    assert kwargs["inferenceConfig"] == {"temperature": 0.0}
+
+
+@pytest.mark.asyncio
+async def test_send_request_includes_system_when_set(provider_adaptor: ProviderAdaptor):
+    client = make_mock_bedrock_client(provider_adaptor)
+    client.converse = AsyncMock(return_value=make_non_stream_bedrock_response("mock response"))
+
+    await provider_adaptor.send_request(MODEL_ID, MESSAGES, system="be brief")
+
+    _, kwargs = client.converse.call_args
+    assert kwargs["system"] == [{"text": "be brief"}]
+
+
+@pytest.mark.asyncio
+async def test_send_request_omits_system_when_unset(provider_adaptor: ProviderAdaptor):
+    client = make_mock_bedrock_client(provider_adaptor)
+    client.converse = AsyncMock(return_value=make_non_stream_bedrock_response("mock response"))
+
+    await provider_adaptor.send_request(MODEL_ID, MESSAGES)
+
+    _, kwargs = client.converse.call_args
+    assert "system" not in kwargs
+
+
+@pytest.mark.asyncio
 async def test_stream_request_success(provider_adaptor: ProviderAdaptor):
     client = make_mock_bedrock_client(provider_adaptor)
     client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
@@ -183,3 +249,20 @@ async def test_stream_request_client_error_propagates(provider_adaptor: Provider
 
     with pytest.raises(ClientError):
         await provider_adaptor.stream_request(MODEL_ID, MESSAGES)
+
+
+@pytest.mark.asyncio
+async def test_stream_request_includes_inference_config_and_system_when_set(
+    provider_adaptor: ProviderAdaptor,
+):
+    client = make_mock_bedrock_client(provider_adaptor)
+    client.converse_stream = AsyncMock(return_value=make_stream_bedrock_response("mock response"))
+
+    result = await provider_adaptor.stream_request(
+        MODEL_ID, MESSAGES, temperature=0.5, max_tokens=256, system="be brief"
+    )
+    _ = [token async for token in result]
+
+    _, kwargs = client.converse_stream.call_args
+    assert kwargs["inferenceConfig"] == {"temperature": 0.5, "maxTokens": 256}
+    assert kwargs["system"] == [{"text": "be brief"}]

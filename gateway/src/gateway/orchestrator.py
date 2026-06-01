@@ -13,7 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 async def orchestrate(
-    metadata: dict[str, str], messages: list[ChatMessageRequest], stream: bool, ctx: AppContext
+    metadata: dict[str, str],
+    messages: list[ChatMessageRequest],
+    stream: bool,
+    ctx: AppContext,
+    *,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+    system: str | None = None,
 ) -> JSONResponse | StreamingResponse | None:
     """Run a chat-completion request through the gateway.
 
@@ -34,9 +41,9 @@ async def orchestrate(
     start_time = datetime.now(UTC)
     deadline = start_time + timedelta(seconds=ctx.config.initial_response_timeout)
     resolved_chain = resolve_attempt_chain(metadata, ctx.config)
-    cache_prompt = _conversation_cache_prompt(messages)
-    prompt = cache_prompt
+    cache_prompt = _conversation_cache_prompt(messages, system)
     use_semantic_cache = _should_use_semantic_cache(messages, ctx)
+    skip_cache = _should_skip_cache(temperature, ctx)
 
     last_status: int | None = None
     for target in resolved_chain:
@@ -46,7 +53,7 @@ async def orchestrate(
         if await ctx.redis.exists(f"gateway:cooldown:{target.provider}:{target.model}"):
             continue
 
-        if not stream:
+        if not stream and not skip_cache:
             cached = await ctx.prompt_cache.get(
                 prompt=cache_prompt,
                 model=target.model,
@@ -71,25 +78,28 @@ async def orchestrate(
             target,
             messages=messages,
             metadata=metadata,
-            prompt=prompt,
             stream=stream,
             start_time=start_time,
             adaptor=ctx.adaptor,
             redis=ctx.redis,
             target_retries=ctx.config.target_retries,
             cooldown_ttl=ctx.config.cooldown_ttl,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            system=system,
         )
 
         match verdict:
             case CompleteSuccess(response=result):
                 if not stream:
-                    await ctx.prompt_cache.set(
-                        prompt=prompt,
-                        response=result["response"],
-                        model=target.model,
-                        provider=target.provider,
-                        use_semantic=use_semantic_cache,
-                    )
+                    if not skip_cache:
+                        await ctx.prompt_cache.set(
+                            prompt=cache_prompt,
+                            response=result["response"],
+                            model=target.model,
+                            provider=target.provider,
+                            use_semantic=use_semantic_cache,
+                        )
 
                     latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
                     logger.info(
@@ -141,9 +151,12 @@ async def orchestrate(
     return None
 
 
-def _conversation_cache_prompt(messages: list[ChatMessageRequest]) -> str:
+def _conversation_cache_prompt(messages: list[ChatMessageRequest], system: str | None) -> str:
     return json.dumps(
-        [message.model_dump(mode="json") for message in messages],
+        {
+            "system": system,
+            "messages": [message.model_dump(mode="json") for message in messages],
+        },
         sort_keys=True,
         separators=(",", ":"),
     )
@@ -154,3 +167,8 @@ def _should_use_semantic_cache(messages: list[ChatMessageRequest], ctx: AppConte
     return (
         semantic_config is not None and len(messages) <= semantic_config.conversation_size_threshold
     )
+
+
+def _should_skip_cache(temperature: float | None, ctx: AppContext) -> bool:
+    threshold = ctx.config.prompt_cache.temperature_threshold
+    return temperature is not None and temperature > threshold

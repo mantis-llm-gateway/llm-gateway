@@ -2,7 +2,7 @@ import sys
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, Protocol, TypedDict, cast
+from typing import Any, NotRequired, Protocol, TypedDict, cast
 
 import aioboto3  # type: ignore
 
@@ -14,6 +14,19 @@ class _Text(TypedDict):
 class Message(TypedDict):
     role: str
     content: list[_Text]
+
+
+class _InferenceConfig(TypedDict, total=False):
+    temperature: float
+    maxTokens: int
+
+
+class _ConverseKwargs(TypedDict):
+    modelId: str
+    messages: list[Message]
+    guardrailConfig: NotRequired[dict]
+    inferenceConfig: NotRequired[_InferenceConfig]
+    system: NotRequired[list[_Text]]
 
 
 class _AsyncClientContext(Protocol):
@@ -80,16 +93,69 @@ class ProviderAdaptor:
             self.session.client("bedrock-runtime", region_name=self.region_name),
         )
 
-    async def send_request(
-        self, model_id: str, messages: list[Message]
-    ) -> dict | GuardrailIntervention:
-        kwargs: dict = {"modelId": model_id, "messages": messages}
+    def _build_converse_kwargs(
+        self,
+        model_id: str,
+        messages: list[Message],
+        *,
+        temperature: float | None,
+        max_tokens: int | None,
+        system: str | None,
+        stream: bool,
+    ) -> _ConverseKwargs:
+        """
+        Assemble the kwargs for a Bedrock Converse API call.
+
+        Maps our request fields onto the payload accepted by
+        ``bedrock-runtime``'s ``converse`` / ``converse_stream`` — hence the
+        camelCase keys (``modelId``, ``maxTokens``). Guardrail and inference
+        settings are only included when configured; ``stream`` switches the
+        guardrail to sync processing for ``converse_stream``.
+        """
+        kwargs: _ConverseKwargs = {"modelId": model_id, "messages": messages}
+
         if self.guardrail_id is not None:
-            kwargs["guardrailConfig"] = {
+            guardrail_config: dict = {
                 "guardrailIdentifier": self.guardrail_id,
                 "guardrailVersion": self.guardrail_version,
                 "trace": "enabled",
             }
+
+            if stream:
+                guardrail_config["streamProcessingMode"] = "sync"
+
+            kwargs["guardrailConfig"] = guardrail_config
+
+        inference_config: _InferenceConfig = {}
+        if temperature is not None:
+            inference_config["temperature"] = temperature
+        if max_tokens is not None:
+            inference_config["maxTokens"] = max_tokens
+        if inference_config:
+            kwargs["inferenceConfig"] = inference_config
+
+        if system is not None:
+            kwargs["system"] = [{"text": system}]
+
+        return kwargs
+
+    async def send_request(
+        self,
+        model_id: str,
+        messages: list[Message],
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        system: str | None = None,
+    ) -> dict | GuardrailIntervention:
+        kwargs = self._build_converse_kwargs(
+            model_id,
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            system=system,
+            stream=False,
+        )
         async with self._bedrock_client() as client:
             response = await client.converse(**kwargs)
             if response.get("stopReason") == "guardrail_intervened":
@@ -103,15 +169,23 @@ class ProviderAdaptor:
                 "output_tokens": response["usage"]["outputTokens"],
             }
 
-    async def stream_request(self, model_id: str, messages: list[Message]) -> StreamResult:
-        kwargs: dict = {"modelId": model_id, "messages": messages}
-        if self.guardrail_id is not None:
-            kwargs["guardrailConfig"] = {
-                "guardrailIdentifier": self.guardrail_id,
-                "guardrailVersion": self.guardrail_version,
-                "streamProcessingMode": "sync",
-                "trace": "enabled",
-            }
+    async def stream_request(
+        self,
+        model_id: str,
+        messages: list[Message],
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        system: str | None = None,
+    ) -> StreamResult:
+        kwargs = self._build_converse_kwargs(
+            model_id,
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            system=system,
+            stream=True,
+        )
 
         client_context = self._bedrock_client()
         client = await client_context.__aenter__()

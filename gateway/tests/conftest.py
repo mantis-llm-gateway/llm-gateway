@@ -44,13 +44,26 @@ class FakeAdaptor:
     def __init__(self) -> None:
         self.send_request_calls: list[tuple[str, list]] = []
         self.stream_request_calls: list[tuple[str, list]] = []
+        self.send_request_inference: list[dict] = []
+        self.stream_request_inference: list[dict] = []
         self.response: str = "fake response"
         self.stream_response: list[str] = ["fake response"]
         self.error: Exception | None = None
         self.guardrail_intervention: bool = False
 
-    async def send_request(self, model_id: str, messages: list) -> dict | GuardrailIntervention:
+    async def send_request(
+        self,
+        model_id: str,
+        messages: list,
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        system: str | None = None,
+    ) -> dict | GuardrailIntervention:
         self.send_request_calls.append((model_id, messages))
+        self.send_request_inference.append(
+            {"temperature": temperature, "max_tokens": max_tokens, "system": system}
+        )
         if self.error is not None:
             raise self.error
 
@@ -59,8 +72,19 @@ class FakeAdaptor:
 
         return {"response": self.response, "input_tokens": 0, "output_tokens": 0}
 
-    async def stream_request(self, model_id: str, messages: list) -> StreamResult:
+    async def stream_request(
+        self,
+        model_id: str,
+        messages: list,
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        system: str | None = None,
+    ) -> StreamResult:
         self.stream_request_calls.append((model_id, messages))
+        self.stream_request_inference.append(
+            {"temperature": temperature, "max_tokens": max_tokens, "system": system}
+        )
         if self.error is not None:
             raise self.error
 

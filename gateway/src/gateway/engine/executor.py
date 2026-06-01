@@ -122,13 +122,15 @@ async def execute_attempt(
     *,
     messages: list[ChatMessageRequest],
     metadata: dict[str, str],
-    prompt: str,
     stream: bool,
     start_time: datetime,
     adaptor: ProviderAdaptor,
     redis: Redis,
     target_retries: int,
     cooldown_ttl: int,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+    system: str | None = None,
 ) -> Verdict:
     """Run one target with up to `target_retries` retries.
 
@@ -141,7 +143,13 @@ async def execute_attempt(
     for _ in range(1 + target_retries):
         try:
             if stream:
-                stream_result = await adaptor.stream_request(model_id, provider_messages)
+                stream_result = await adaptor.stream_request(
+                    model_id,
+                    provider_messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    system=system,
+                )
                 return StreamingSuccess(
                     chunks=_logged_token_strings(
                         stream_result,
@@ -152,7 +160,13 @@ async def execute_attempt(
                     )
                 )
 
-            result = await adaptor.send_request(model_id, provider_messages)
+            result = await adaptor.send_request(
+                model_id,
+                provider_messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                system=system,
+            )
             if isinstance(result, GuardrailIntervention):
                 logger.warning(
                     "guardrail intervened",

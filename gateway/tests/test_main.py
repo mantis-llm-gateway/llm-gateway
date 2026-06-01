@@ -264,6 +264,45 @@ def test_handler_passes_full_chat_history_to_provider(client, fake_adaptor):
     ]
 
 
+def test_handler_threads_inference_params_to_provider(client, fake_adaptor):
+    response = client.post(
+        "/v1/chat/completions",
+        headers={"metadata": json.dumps({"task-type": "code_generation"})},
+        json={
+            "messages": [{"role": "user", "content": "hello"}],
+            "stream": False,
+            "temperature": 0.2,
+            "max_tokens": 128,
+            "system": "be brief",
+        },
+    )
+
+    assert response.status_code == 200
+    assert fake_adaptor.send_request_inference[0] == {
+        "temperature": 0.2,
+        "max_tokens": 128,
+        "system": "be brief",
+    }
+
+
+def test_handler_defaults_inference_params_to_none(client, fake_adaptor):
+    response = client.post(
+        "/v1/chat/completions",
+        headers={"metadata": json.dumps({"task-type": "code_generation"})},
+        json={
+            "messages": [{"role": "user", "content": "hello"}],
+            "stream": False,
+        },
+    )
+
+    assert response.status_code == 200
+    assert fake_adaptor.send_request_inference[0] == {
+        "temperature": None,
+        "max_tokens": None,
+        "system": None,
+    }
+
+
 def test_handler_returns_422_when_messages_is_empty(client):
     response = client.post(
         "/v1/chat/completions",
@@ -301,6 +340,57 @@ def test_handler_returns_422_for_invalid_metadata_header(client):
         json={
             "messages": [{"role": "user", "content": "hello"}],
             "stream": False,
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_handler_accepts_temperature_system_and_max_tokens(client):
+    response = client.post(
+        "/v1/chat/completions",
+        headers={"metadata": json.dumps({"task-type": "code_generation"})},
+        json={
+            "messages": [{"role": "user", "content": "hello"}],
+            "stream": False,
+            "temperature": 0.5,
+            "max_tokens": 256,
+            "system": "You are a helpful assistant.",
+        },
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize("temperature", [-0.1, 2.1])
+def test_handler_returns_422_for_out_of_range_temperature(client, temperature):
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "hello"}],
+            "temperature": temperature,
+        },
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("max_tokens", [0, -1])
+def test_handler_returns_422_for_non_positive_max_tokens(client, max_tokens):
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "hello"}],
+            "max_tokens": max_tokens,
+        },
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("system", ["", "   "])
+def test_handler_returns_422_for_blank_system(client, system):
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "hello"}],
+            "system": system,
         },
     )
     assert response.status_code == 422

@@ -49,7 +49,6 @@ class TestExecuteAttempt:
             target,
             messages=make_messages(),
             metadata={},
-            prompt="hi",
             stream=False,
             start_time=_start_time(),
             adaptor=fake_adaptor,
@@ -68,7 +67,6 @@ class TestExecuteAttempt:
             target,
             messages=make_messages(),
             metadata={},
-            prompt="hi",
             stream=True,
             start_time=_start_time(),
             adaptor=fake_adaptor,
@@ -87,7 +85,6 @@ class TestExecuteAttempt:
             target,
             messages=make_messages(),
             metadata={},
-            prompt="hi",
             stream=True,
             start_time=_start_time(),
             adaptor=fake_adaptor,
@@ -110,7 +107,6 @@ class TestExecuteAttempt:
                 ChatMessageRequest(role="user", content="say it again"),
             ],
             metadata={},
-            prompt="say hi",
             stream=False,
             start_time=_start_time(),
             adaptor=fake_adaptor,
@@ -128,6 +124,56 @@ class TestExecuteAttempt:
             {"role": "user", "content": [{"text": "say it again"}]},
         ]
 
+    async def test_passes_inference_params_to_adaptor(self, fake_adaptor, fake_redis, target):
+        fake_adaptor.response = "hello"
+
+        await execute_attempt(
+            target,
+            messages=[ChatMessageRequest(role="user", content="say hi")],
+            metadata={},
+            stream=False,
+            start_time=_start_time(),
+            adaptor=fake_adaptor,
+            redis=fake_redis,
+            target_retries=0,
+            cooldown_ttl=60,
+            temperature=0.2,
+            max_tokens=128,
+            system="be brief",
+        )
+
+        assert fake_adaptor.send_request_inference[0] == {
+            "temperature": 0.2,
+            "max_tokens": 128,
+            "system": "be brief",
+        }
+
+    async def test_passes_inference_params_to_adaptor_when_streaming(
+        self, fake_adaptor, fake_redis, target
+    ):
+        fake_adaptor.stream_response = ["hello"]
+
+        await execute_attempt(
+            target,
+            messages=[ChatMessageRequest(role="user", content="say hi")],
+            metadata={},
+            stream=True,
+            start_time=_start_time(),
+            adaptor=fake_adaptor,
+            redis=fake_redis,
+            target_retries=0,
+            cooldown_ttl=60,
+            temperature=0.2,
+            max_tokens=128,
+            system="be brief",
+        )
+
+        assert fake_adaptor.stream_request_inference[0] == {
+            "temperature": 0.2,
+            "max_tokens": 128,
+            "system": "be brief",
+        }
+
     async def test_throttling_sets_cooldown_and_failovers(self, fake_adaptor, fake_redis, target):
         fake_adaptor.error = make_bedrock_error("ThrottlingException", 429)
 
@@ -135,7 +181,6 @@ class TestExecuteAttempt:
             target,
             messages=make_messages(),
             metadata={},
-            prompt="hi",
             stream=False,
             start_time=_start_time(),
             adaptor=fake_adaptor,
@@ -157,7 +202,6 @@ class TestExecuteAttempt:
             target,
             messages=make_messages(),
             metadata={},
-            prompt="hi",
             stream=False,
             start_time=_start_time(),
             adaptor=fake_adaptor,
@@ -177,7 +221,6 @@ class TestExecuteAttempt:
             target,
             messages=make_messages(),
             metadata={},
-            prompt="hi",
             stream=False,
             start_time=_start_time(),
             adaptor=fake_adaptor,
@@ -197,7 +240,6 @@ class TestExecuteAttempt:
             target,
             messages=make_messages(),
             metadata={},
-            prompt="hi",
             stream=False,
             start_time=_start_time(),
             adaptor=fake_adaptor,
@@ -223,7 +265,6 @@ class TestExecuteAttempt:
                 target,
                 messages=make_messages(),
                 metadata={"user": "test"},
-                prompt="hi",
                 stream=True,
                 start_time=_start_time(),
                 adaptor=fake_adaptor,
@@ -248,7 +289,6 @@ class TestExecuteAttempt:
                 target,
                 messages=make_messages(),
                 metadata={},
-                prompt="hi",
                 stream=True,
                 start_time=_start_time(),
                 adaptor=fake_adaptor,
@@ -275,7 +315,6 @@ class TestExecuteAttempt:
                 target,
                 messages=make_messages(),
                 metadata={"user": "test"},
-                prompt="hi",
                 stream=False,
                 start_time=_start_time(),
                 adaptor=fake_adaptor,
