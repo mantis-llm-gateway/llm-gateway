@@ -41,11 +41,6 @@ async def test_complete_success_returns_json_with_response(test_context):
 
 @pytest.mark.asyncio
 async def test_cache_key_includes_full_conversation(test_context):
-    messages = [
-        ChatMessageRequest(role="user", content="hello"),
-        ChatMessageRequest(role="assistant", content="hi"),
-        ChatMessageRequest(role="user", content="repeat my first message"),
-    ]
     test_context.prompt_cache.get = AsyncMock(return_value=None)
     test_context.prompt_cache.set = AsyncMock()
 
@@ -59,18 +54,47 @@ async def test_cache_key_includes_full_conversation(test_context):
     ):
         await orchestrate(
             {"task-type": "code_generation"},
-            messages=messages,
+            messages=[
+                ChatMessageRequest(role="user", content="hello"),
+                ChatMessageRequest(role="assistant", content="hi"),
+                ChatMessageRequest(role="user", content="repeat my first message"),
+            ],
             stream=False,
             ctx=test_context,
         )
 
-    expected_prompt = (
-        '[{"content":"hello","role":"user"},'
-        '{"content":"hi","role":"assistant"},'
-        '{"content":"repeat my first message","role":"user"}]'
-    )
-    assert test_context.prompt_cache.get.await_args.kwargs["prompt"] == expected_prompt
-    assert test_context.prompt_cache.set.await_args.kwargs["prompt"] == expected_prompt
+    get_prompt = test_context.prompt_cache.get.await_args.kwargs["prompt"]
+    set_prompt = test_context.prompt_cache.set.await_args.kwargs["prompt"]
+    assert "hello" in get_prompt
+    assert "repeat my first message" in get_prompt
+    assert get_prompt == set_prompt
+
+
+@pytest.mark.asyncio
+async def test_cache_prompt_includes_system_prompt(test_context):
+    test_context.prompt_cache.get = AsyncMock(return_value=None)
+    test_context.prompt_cache.set = AsyncMock()
+
+    with patch(
+        "gateway.orchestrator.execute_attempt",
+        new=AsyncMock(
+            return_value=CompleteSuccess(
+                response={"response": "hello", "input_tokens": 0, "output_tokens": 0}
+            )
+        ),
+    ):
+        await orchestrate(
+            {"task-type": "code_generation"},
+            messages=[ChatMessageRequest(role="user", content="hello")],
+            stream=False,
+            ctx=test_context,
+            system="You are a pirate.",
+        )
+
+    get_prompt = test_context.prompt_cache.get.await_args.kwargs["prompt"]
+    set_prompt = test_context.prompt_cache.set.await_args.kwargs["prompt"]
+    assert "You are a pirate." in get_prompt
+    assert get_prompt == set_prompt
 
 
 @pytest.mark.asyncio

@@ -41,7 +41,7 @@ async def orchestrate(
     start_time = datetime.now(UTC)
     deadline = start_time + timedelta(seconds=ctx.config.initial_response_timeout)
     resolved_chain = resolve_attempt_chain(metadata, ctx.config)
-    cache_prompt = _conversation_cache_prompt(messages)
+    cache_prompt = _conversation_cache_prompt(messages, system)
     prompt = cache_prompt
     use_semantic_cache = _should_use_semantic_cache(messages, ctx)
 
@@ -151,9 +151,12 @@ async def orchestrate(
     return None
 
 
-def _conversation_cache_prompt(messages: list[ChatMessageRequest]) -> str:
+def _conversation_cache_prompt(messages: list[ChatMessageRequest], system: str | None) -> str:
     return json.dumps(
-        [message.model_dump(mode="json") for message in messages],
+        {
+            "system": system,
+            "messages": [message.model_dump(mode="json") for message in messages],
+        },
         sort_keys=True,
         separators=(",", ":"),
     )
