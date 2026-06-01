@@ -1,13 +1,36 @@
 import json
 import logging
+from collections.abc import AsyncGenerator, AsyncIterator
 from datetime import UTC, datetime, timedelta
 
+from botocore.exceptions import ClientError
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from gateway.context import AppContext
 from gateway.engine import Abort, CompleteSuccess, Failover, StreamingSuccess, execute_attempt
+from gateway.engine.errors import bedrock_error_code
 from gateway.models import ChatMessageRequest
 from gateway.routing import resolve_attempt_chain
+
+
+async def _handle_stream(chunks: AsyncIterator[str]) -> AsyncGenerator[str, None]:
+    try:
+        async for chunk in chunks:
+            yield chunk
+    except ClientError as e:
+        if bedrock_error_code(e) == "ChunkTimeOutException":
+            logger.warning("stream chunk timeout", exc_info=e)
+            yield "\nerror: provider timeout - check logs for more information\n"
+            return
+        else:
+            logger.warning("stream client error", exc_info=e)
+            yield "\nerror: provider failure - check logs for more information\n"
+            return
+    except Exception as e:
+        logger.warning("stream error", exc_info=e)
+        yield "\nerror: check logs for more information\n"
+        return
+
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +110,7 @@ async def orchestrate(
             temperature=temperature,
             max_tokens=max_tokens,
             system=system,
+            stream_idle_timeout=ctx.config.stream_idle_timeout,
         )
 
         match verdict:
@@ -116,7 +140,10 @@ async def orchestrate(
                     )
                 return JSONResponse(content={"response": result["response"]})
             case StreamingSuccess(chunks=g):
-                return StreamingResponse(g, media_type="text/event-stream")
+                return StreamingResponse(
+                    _handle_stream(g),
+                    media_type="text/plain",
+                )
             case Abort(status_code=code, message=msg):
                 latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
                 logger.warning(

@@ -1,8 +1,11 @@
 from collections.abc import Mapping
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from botocore.exceptions import ClientError
+
+if TYPE_CHECKING:
+    from botocore.exceptions import _ClientErrorResponseTypeDef
 
 
 class ErrorAction(Enum):
@@ -50,3 +53,19 @@ def classify_bedrock_error(e: ClientError) -> tuple[ErrorAction, int]:
     if status >= 500:
         return ErrorAction.RETRY, status
     return ErrorAction.FAILOVER, status
+
+
+def load_chunk_time_out_response(stream_idle_timeout) -> "_ClientErrorResponseTypeDef":
+    return {
+        "Error": {
+            "Code": "ChunkTimeOutException",
+            "Message": f"The LLM provider sent no chunks for {stream_idle_timeout} seconds",
+        },
+        "ResponseMetadata": {
+            "HTTPStatusCode": 429,
+            "RequestId": "",
+            "HostId": "",
+            "HTTPHeaders": {},
+            "RetryAttempts": 0,
+        },
+    }

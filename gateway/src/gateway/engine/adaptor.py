@@ -1,10 +1,14 @@
+import asyncio
 import sys
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Any, NotRequired, Protocol, TypedDict, cast
 
-import aioboto3  # type: ignore
+import aioboto3
+from botocore.exceptions import ClientError
+
+from gateway.engine.errors import load_chunk_time_out_response
 
 
 class _Text(TypedDict):
@@ -173,6 +177,7 @@ class ProviderAdaptor:
         self,
         model_id: str,
         messages: list[Message],
+        stream_idle_timeout: int,
         *,
         temperature: float | None = None,
         max_tokens: int | None = None,
@@ -203,18 +208,28 @@ class ProviderAdaptor:
             guardrail_trace: dict = {}
             input_tokens = 0
             output_tokens = 0
+            stream_iter = response["stream"].__aiter__()
             try:
-                async for event in response["stream"]:
-                    if "messageStop" in event:
-                        stop_reason = event["messageStop"].get("stopReason")
-                    elif "metadata" in event:
-                        guardrail_trace = (
-                            event.get("metadata", {}).get("trace", {}).get("guardrail", {})
-                        )
-                        usage = event.get("metadata", {}).get("usage", {})
-                        input_tokens = usage.get("inputTokens", 0)
-                        output_tokens = usage.get("outputTokens", 0)
-                    elif "contentBlockDelta" in event:
+                while True:
+                    try:
+                        event = await asyncio.wait_for(stream_iter.__anext__(), stream_idle_timeout)
+                        if "messageStop" in event:
+                            stop_reason = event["messageStop"].get("stopReason")
+                        elif "metadata" in event:
+                            guardrail_trace = (
+                                event.get("metadata", {}).get("trace", {}).get("guardrail", {})
+                            )
+                            usage = event.get("metadata", {}).get("usage", {})
+                            input_tokens = usage.get("inputTokens", 0)
+                            output_tokens = usage.get("outputTokens", 0)
+                    except TimeoutError:
+                        raise ClientError(
+                            load_chunk_time_out_response(stream_idle_timeout), "ReceiveNextChunk"
+                        ) from TimeoutError
+                    except StopAsyncIteration:
+                        break
+
+                    if "contentBlockDelta" in event:
                         delta = event["contentBlockDelta"]["delta"]
                         if "text" in delta:
                             yield delta["text"]

@@ -45,6 +45,7 @@ class Config(BaseModel):
     target_retries: int
     fallbacks: list[str]
     initial_response_timeout: int
+    stream_idle_timeout: int
     default_model: str
     cooldown_ttl: int
     prompt_cache: PromptCacheConfig

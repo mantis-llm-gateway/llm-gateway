@@ -17,6 +17,16 @@ def validate_config(config: Config) -> None:
     validate_ttl_seconds(config)
     validate_similarity_threshold(config)
     validate_top_k(config)
+    validate_stream_idle_timeout(config)
+
+
+def validate_stream_idle_timeout(config: Config) -> None:
+    if (
+        not isinstance(config.stream_idle_timeout, int)
+        or isinstance(config.stream_idle_timeout, bool)
+        or config.stream_idle_timeout <= 0
+    ):
+        raise ValueError("The stream_idle_timeout field must be a positive whole number.")
 
 
 def _validate_non_empty_string(value, field_description: str) -> None:

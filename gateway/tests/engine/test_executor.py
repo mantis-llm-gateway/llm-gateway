@@ -55,6 +55,7 @@ class TestExecuteAttempt:
             redis=fake_redis,
             target_retries=0,
             cooldown_ttl=60,
+            stream_idle_timeout=10,
         )
 
         assert isinstance(verdict, CompleteSuccess)
@@ -73,6 +74,7 @@ class TestExecuteAttempt:
             redis=fake_redis,
             target_retries=0,
             cooldown_ttl=60,
+            stream_idle_timeout=10,
         )
 
         assert isinstance(verdict, StreamingSuccess)
@@ -91,6 +93,7 @@ class TestExecuteAttempt:
             redis=fake_redis,
             target_retries=0,
             cooldown_ttl=60,
+            stream_idle_timeout=10,
         )
 
         assert isinstance(verdict, Failover)
@@ -113,6 +116,7 @@ class TestExecuteAttempt:
             redis=fake_redis,
             target_retries=0,
             cooldown_ttl=60,
+            stream_idle_timeout=10,
         )
 
         model_id, messages = fake_adaptor.send_request_calls[0]
@@ -140,6 +144,7 @@ class TestExecuteAttempt:
             temperature=0.2,
             max_tokens=128,
             system="be brief",
+            stream_idle_timeout=10,
         )
 
         assert fake_adaptor.send_request_inference[0] == {
@@ -166,6 +171,7 @@ class TestExecuteAttempt:
             temperature=0.2,
             max_tokens=128,
             system="be brief",
+            stream_idle_timeout=10,
         )
 
         assert fake_adaptor.stream_request_inference[0] == {
@@ -187,6 +193,7 @@ class TestExecuteAttempt:
             redis=fake_redis,
             target_retries=0,
             cooldown_ttl=60,
+            stream_idle_timeout=10,
         )
 
         assert isinstance(verdict, Failover)
@@ -208,6 +215,7 @@ class TestExecuteAttempt:
             redis=fake_redis,
             target_retries=0,
             cooldown_ttl=60,
+            stream_idle_timeout=10,
         )
 
         assert isinstance(verdict, Failover)
@@ -227,6 +235,7 @@ class TestExecuteAttempt:
             redis=fake_redis,
             target_retries=0,
             cooldown_ttl=60,
+            stream_idle_timeout=10,
         )
 
         assert isinstance(verdict, Abort)
@@ -246,6 +255,7 @@ class TestExecuteAttempt:
             redis=fake_redis,
             target_retries=2,
             cooldown_ttl=60,
+            stream_idle_timeout=10,
         )
 
         assert isinstance(verdict, Failover)
@@ -271,6 +281,7 @@ class TestExecuteAttempt:
                 redis=fake_redis,
                 target_retries=0,
                 cooldown_ttl=60,
+                stream_idle_timeout=1,
             )
             assert isinstance(verdict, StreamingSuccess)
             [chunk async for chunk in verdict.chunks]
@@ -295,6 +306,7 @@ class TestExecuteAttempt:
                 redis=fake_redis,
                 target_retries=0,
                 cooldown_ttl=60,
+                stream_idle_timeout=1,
             )
             assert isinstance(verdict, StreamingSuccess)
             [chunk async for chunk in verdict.chunks]
@@ -321,6 +333,7 @@ class TestExecuteAttempt:
                 redis=fake_redis,
                 target_retries=0,
                 cooldown_ttl=60,
+                stream_idle_timeout=1,
             )
 
         assert isinstance(verdict, CompleteSuccess)

@@ -13,6 +13,7 @@ from gateway.validation import (
     validate_no_duplicates_in_config,
     validate_routing_rules_strings,
     validate_similarity_threshold,
+    validate_stream_idle_timeout,
     validate_target_retries_val,
     validate_temperature_threshold,
     validate_top_k,
@@ -397,3 +398,29 @@ class TestValidateConversationSizeThreshold:
         validate_conversation_size_threshold(
             make_config(prompt_cache=make_prompt_cache(semantic=None))
         )
+
+
+class TestValidateStreamIdleTimeout:
+    def test_raises_if_bool(self):
+        config = make_config(stream_idle_timeout=True)
+
+        with pytest.raises(ValueError, match="stream_idle_timeout"):
+            validate_stream_idle_timeout(config)
+
+    def test_raises_if_zero(self):
+        config = make_config(stream_idle_timeout=0)
+
+        with pytest.raises(ValueError, match="stream_idle_timeout"):
+            validate_stream_idle_timeout(config)
+
+    def test_raises_if_negative(self):
+        config = make_config(stream_idle_timeout=-1)
+
+        with pytest.raises(ValueError, match="stream_idle_timeout"):
+            validate_stream_idle_timeout(config)
+
+    def test_raises_if_not_integer(self):
+        config = make_config(stream_idle_timeout="a")
+
+        with pytest.raises(ValueError, match="stream_idle_timeout"):
+            validate_stream_idle_timeout(config)

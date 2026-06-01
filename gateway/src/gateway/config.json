@@ -72,6 +72,7 @@
   "target_retries": 2,
   "fallbacks": ["Claude Haiku 4-5 Bedrock Fallback"],
   "initial_response_timeout": 30,
+  "stream_idle_timeout": 5,
   "cooldown_ttl": 60,
   "prompt_cache": {
     "ttl_seconds": 3600,

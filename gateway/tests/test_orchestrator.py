@@ -7,15 +7,12 @@ from fastapi.responses import StreamingResponse
 from gateway.engine import Abort, CompleteSuccess, Failover, StreamingSuccess
 from gateway.models import ChatMessageRequest, SemanticCacheConfig
 from gateway.orchestrator import orchestrate
+from tests.conftest import _client_error_gen, _generic_error_gen, _timeout_gen, make_messages
 
 
 async def _gen():
     yield "h"
     yield "i"
-
-
-def make_messages(content: str = "hi") -> list[ChatMessageRequest]:
-    return [ChatMessageRequest(role="user", content=content)]
 
 
 @pytest.mark.asyncio
@@ -260,3 +257,62 @@ async def test_all_cooled_returns_none(test_context, fake_redis):
         )
     assert mock_attempt.await_count == 0
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_timeout_stream_abort(test_context):
+    with (
+        patch(
+            "gateway.orchestrator.execute_attempt",
+            new=AsyncMock(return_value=StreamingSuccess(chunks=_timeout_gen())),  # type: ignore
+        ),
+    ):
+        result = await orchestrate(
+            {"task-type": "code_generation"},
+            messages=make_messages(),
+            stream=True,
+            ctx=test_context,
+        )
+
+        assert isinstance(result, StreamingResponse)
+
+        chunks = [chunk async for chunk in result.body_iterator]
+        assert chunks == ["\nerror: provider timeout - check logs for more information\n"]
+
+
+@pytest.mark.asyncio
+async def test_client_error_stream_abort(test_context):
+    with patch(
+        "gateway.orchestrator.execute_attempt",
+        new=AsyncMock(return_value=StreamingSuccess(chunks=_client_error_gen())),
+    ):
+        result = await orchestrate(
+            {"task-type": "code_generation"},
+            messages=make_messages(),
+            stream=True,
+            ctx=test_context,
+        )
+
+        assert isinstance(result, StreamingResponse)
+
+        chunks = [chunk async for chunk in result.body_iterator]
+        assert chunks == ["\nerror: provider failure - check logs for more information\n"]
+
+
+@pytest.mark.asyncio
+async def test_generic_exception_stream_abort(test_context):
+    with patch(
+        "gateway.orchestrator.execute_attempt",
+        new=AsyncMock(return_value=StreamingSuccess(chunks=_generic_error_gen())),
+    ):
+        result = await orchestrate(
+            {"task-type": "code_generation"},
+            messages=make_messages(),
+            stream=True,
+            ctx=test_context,
+        )
+
+        assert isinstance(result, StreamingResponse)
+
+        chunks = [chunk async for chunk in result.body_iterator]
+        assert chunks == ["\nerror: check logs for more information\n"]
