@@ -103,6 +103,15 @@ class ProviderAdaptor:
         system: str | None,
         stream: bool,
     ) -> _ConverseKwargs:
+        """
+        Assemble the kwargs for a Bedrock Converse API call.
+
+        Maps our request fields onto the payload accepted by
+        ``bedrock-runtime``'s ``converse`` / ``converse_stream`` — hence the
+        camelCase keys (``modelId``, ``maxTokens``). Guardrail and inference
+        settings are only included when configured; ``stream`` switches the
+        guardrail to sync processing for ``converse_stream``.
+        """
         kwargs: _ConverseKwargs = {"modelId": model_id, "messages": messages}
 
         if self.guardrail_id is not None:
