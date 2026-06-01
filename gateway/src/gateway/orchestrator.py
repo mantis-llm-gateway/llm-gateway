@@ -13,7 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 async def orchestrate(
-    metadata: dict[str, str], messages: list[ChatMessageRequest], stream: bool, ctx: AppContext
+    metadata: dict[str, str],
+    messages: list[ChatMessageRequest],
+    stream: bool,
+    ctx: AppContext,
+    *,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+    system: str | None = None,
 ) -> JSONResponse | StreamingResponse | None:
     """Run a chat-completion request through the gateway.
 
@@ -78,6 +85,9 @@ async def orchestrate(
             redis=ctx.redis,
             target_retries=ctx.config.target_retries,
             cooldown_ttl=ctx.config.cooldown_ttl,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            system=system,
         )
 
         match verdict:

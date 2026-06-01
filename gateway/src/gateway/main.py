@@ -199,7 +199,15 @@ async def chat_completions(
     metadata: dict[str, str] = Depends(parse_metadata_header),
     ctx: AppContext = Depends(get_context),
 ) -> JSONResponse | StreamingResponse | None:
-    return await orchestrate(metadata, body.messages, body.stream, ctx)
+    return await orchestrate(
+        metadata,
+        body.messages,
+        body.stream,
+        ctx,
+        temperature=body.temperature,
+        max_tokens=body.max_tokens,
+        system=body.system,
+    )
 
 
 @app.post("/config")
