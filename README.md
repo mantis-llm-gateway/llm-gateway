@@ -205,7 +205,79 @@ export TF_VAR_cache_auth_token="your-generated-token"
 
 Optional variables include `aws_region`, `aws_profile`, `ecs_desired_count`,
 `container_image_tag`, `log_retention_days`, `cache_node_type`,
-`allowed_http_cidrs`, and the public and private subnet CIDRs.
+`allowed_http_cidrs`, `enable_https`, `acm_certificate_arn`, `gateway_domain_name`,
+and the public and private subnet CIDRs.
+
+By default, the ALB exposes an HTTP listener and forwards requests to the gateway tasks
+over HTTP on port `8000`. The default `allowed_http_cidrs` value exposes the public
+listener to the wider internet.
+
+### Configure HTTPS and Cloudflare DNS
+
+HTTPS is opt-in so development deployments do not require a domain or certificate. The
+ALB still forwards requests to the gateway tasks over HTTP on port `8000` when HTTPS
+is enabled. Before applying an HTTPS deployment:
+
+1. Request an ACM public certificate in the same AWS region as the ALB. Include each
+   hostname that the deployment will use, such as `gateway.example.com`. Leave
+   certificate export disabled and choose DNS validation.
+2. For every hostname included in the certificate, add the CNAME name and value shown
+   by ACM as a Cloudflare CNAME record. Set **Proxy status** to **DNS only** and leave
+   the validation records in place permanently so ACM can renew the certificate.
+3. Wait until ACM reports the certificate status as **Issued**.
+4. Add the HTTPS settings to `infra/terraform.tfvars`:
+
+```hcl
+enable_https        = true
+acm_certificate_arn = "arn:aws:acm:<region>:<account-id>:certificate/<certificate-id>"
+gateway_domain_name = "gateway.example.com"
+```
+
+Alternatively, pass the HTTPS settings through environment variables:
+
+```sh
+export TF_VAR_enable_https=true
+export TF_VAR_acm_certificate_arn="arn:aws:acm:<region>:<account-id>:certificate/<certificate-id>"
+export TF_VAR_gateway_domain_name="gateway.example.com"
+```
+
+After applying the infrastructure, create a separate Cloudflare CNAME record to route
+gateway traffic to the ALB:
+
+| Cloudflare field | Value |
+| --- | --- |
+| Type | `CNAME` |
+| Name | `@` for the apex domain, or the chosen subdomain |
+| Target | Output from `terraform -chdir=infra output -raw alb_dns_name` |
+| Proxy status | `DNS only` |
+| TTL | `Auto` |
+
+Cloudflare flattens a CNAME at the apex domain automatically. Keep the routing record
+set to **DNS only** while using an IP allow-list, because proxied requests would reach
+the ALB from Cloudflare IP addresses rather than the original client IP.
+
+Until application authentication and rate limiting are implemented, restrict access
+to your current public IP:
+
+```sh
+curl https://checkip.amazonaws.com
+```
+
+```hcl
+allowed_http_cidrs = ["<your-public-ip>/32"]
+```
+
+Apply the security group change and verify the deployment:
+
+```sh
+terraform -chdir=infra apply
+dig <gateway-domain-name> +short
+curl -i https://<gateway-domain-name>/health
+curl -I http://<gateway-domain-name>/health
+```
+
+The HTTPS health request should return `200` with `{"status":"ok"}`. The HTTP request
+should return `301 Moved Permanently`; this redirect is intentional.
 
 ### Existing local deployments
 
