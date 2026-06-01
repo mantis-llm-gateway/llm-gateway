@@ -1,0 +1,196 @@
+{
+    "widgets": [
+        {
+            "type": "text",
+            "x": 0, "y": 0, "width": 24, "height": 1,
+            "properties": { "markdown": "# Mantis — Cache and Token Usage" }
+        },
+        {
+            "type": "metric",
+            "x": 0, "y": 1, "width": 4, "height": 4,
+            "properties": {
+                "title": "Total Cache Hits",
+                "metrics": [
+                    [ { "expression": "FILL(m1,0)+FILL(m2,0)", "label": "Cache Hits", "id": "e1" } ],
+                    [ "LLMGateway", "ExactCacheHitCount",    { "id": "m1", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "SemanticCacheHitCount", { "id": "m2", "stat": "Sum", "visible": false } ]
+                ],
+                "view": "singleValue",
+                "region": "us-east-1",
+                "setPeriodToTimeRange": true
+            }
+        },
+        {
+            "type": "metric",
+            "x": 4, "y": 1, "width": 4, "height": 4,
+            "properties": {
+                "title": "Exact Cache Hits",
+                "metrics": [
+                    [ { "expression": "FILL(m1,0)", "label": "Exact Hits", "id": "e1" } ],
+                    [ "LLMGateway", "ExactCacheHitCount", { "id": "m1", "stat": "Sum", "visible": false } ]
+                ],
+                "view": "singleValue",
+                "region": "us-east-1",
+                "setPeriodToTimeRange": true
+            }
+        },
+        {
+            "type": "metric",
+            "x": 8, "y": 1, "width": 4, "height": 4,
+            "properties": {
+                "title": "Semantic Cache Hits",
+                "metrics": [
+                    [ { "expression": "FILL(m1,0)", "label": "Semantic Hits", "id": "e1" } ],
+                    [ "LLMGateway", "SemanticCacheHitCount", { "id": "m1", "stat": "Sum", "visible": false } ]
+                ],
+                "view": "singleValue",
+                "region": "us-east-1",
+                "setPeriodToTimeRange": true
+            }
+        },
+        {
+            "type": "metric",
+            "x": 12, "y": 1, "width": 4, "height": 4,
+            "properties": {
+                "title": "Cache Hit Rate",
+                "metrics": [
+                    [ { "expression": "IF(FILL(m1,0)+FILL(m2,0)+FILL(m3,0)+FILL(m4,0)+FILL(m5,0)+FILL(m6,0)+FILL(m7,0)+FILL(m8,0)>0,(FILL(m7,0)+FILL(m8,0))/(FILL(m1,0)+FILL(m2,0)+FILL(m3,0)+FILL(m4,0)+FILL(m5,0)+FILL(m6,0)+FILL(m7,0)+FILL(m8,0))*100,0)", "label": "Hit Rate %", "id": "e1" } ],
+                    [ "LLMGateway", "NonStreamedSuccessCount",  { "id": "m1", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "StreamCompletedCount",     { "id": "m2", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "AbortCount",               { "id": "m3", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "TargetsExhaustedCount",    { "id": "m4", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "MidStreamErrorCount",      { "id": "m5", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "GuardrailIntervenedCount", { "id": "m6", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "ExactCacheHitCount",       { "id": "m7", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "SemanticCacheHitCount",    { "id": "m8", "stat": "Sum", "visible": false } ]
+                ],
+                "view": "singleValue",
+                "region": "us-east-1",
+                "setPeriodToTimeRange": true
+            }
+        },
+        {
+            "type": "metric",
+            "x": 16, "y": 1, "width": 4, "height": 4,
+            "properties": {
+                "title": "Exact Cache Hit Rate",
+                "metrics": [
+                    [ { "expression": "IF(FILL(m1,0)+FILL(m2,0)+FILL(m3,0)+FILL(m4,0)+FILL(m5,0)+FILL(m6,0)+FILL(m7,0)+FILL(m8,0)>0,FILL(m7,0)/(FILL(m1,0)+FILL(m2,0)+FILL(m3,0)+FILL(m4,0)+FILL(m5,0)+FILL(m6,0)+FILL(m7,0)+FILL(m8,0))*100,0)", "label": "Exact Hit Rate %", "id": "e1" } ],
+                    [ "LLMGateway", "NonStreamedSuccessCount",  { "id": "m1", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "StreamCompletedCount",     { "id": "m2", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "AbortCount",               { "id": "m3", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "TargetsExhaustedCount",    { "id": "m4", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "MidStreamErrorCount",      { "id": "m5", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "GuardrailIntervenedCount", { "id": "m6", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "ExactCacheHitCount",       { "id": "m7", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "SemanticCacheHitCount",    { "id": "m8", "stat": "Sum", "visible": false } ]
+                ],
+                "view": "singleValue",
+                "region": "us-east-1",
+                "setPeriodToTimeRange": true
+            }
+        },
+        {
+            "type": "metric",
+            "x": 20, "y": 1, "width": 4, "height": 4,
+            "properties": {
+                "title": "Semantic Cache Hit Rate",
+                "metrics": [
+                    [ { "expression": "IF(FILL(m1,0)+FILL(m2,0)+FILL(m3,0)+FILL(m4,0)+FILL(m5,0)+FILL(m6,0)+FILL(m7,0)+FILL(m8,0)>0,FILL(m8,0)/(FILL(m1,0)+FILL(m2,0)+FILL(m3,0)+FILL(m4,0)+FILL(m5,0)+FILL(m6,0)+FILL(m7,0)+FILL(m8,0))*100,0)", "label": "Semantic Hit Rate %", "id": "e1" } ],
+                    [ "LLMGateway", "NonStreamedSuccessCount",  { "id": "m1", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "StreamCompletedCount",     { "id": "m2", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "AbortCount",               { "id": "m3", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "TargetsExhaustedCount",    { "id": "m4", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "MidStreamErrorCount",      { "id": "m5", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "GuardrailIntervenedCount", { "id": "m6", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "ExactCacheHitCount",       { "id": "m7", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "SemanticCacheHitCount",    { "id": "m8", "stat": "Sum", "visible": false } ]
+                ],
+                "view": "singleValue",
+                "region": "us-east-1",
+                "setPeriodToTimeRange": true
+            }
+        },
+        {
+            "type": "text",
+            "x": 0, "y": 5, "width": 24, "height": 1,
+            "properties": { "markdown": "## Cache Activity" }
+        },
+        {
+            "type": "metric",
+            "x": 0, "y": 6, "width": 12, "height": 6,
+            "properties": {
+                "title": "Cache Hits by Type",
+                "metrics": [
+                    [ "LLMGateway", "ExactCacheHitCount",    { "stat": "Sum", "period": 60, "label": "Exact Hits" } ],
+                    [ "LLMGateway", "SemanticCacheHitCount", { "stat": "Sum", "period": 60, "label": "Semantic Hits" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": true,
+                "region": "us-east-1",
+                "period": 60
+            }
+        },
+        {
+            "type": "metric",
+            "x": 12, "y": 6, "width": 12, "height": 6,
+            "properties": {
+                "title": "Token Usage Over Time",
+                "metrics": [
+                    [ "LLMGateway", "NonStreamedInputTokens",  { "stat": "Sum", "period": 300, "label": "Non-Streamed Input" } ],
+                    [ "LLMGateway", "NonStreamedOutputTokens", { "stat": "Sum", "period": 300, "label": "Non-Streamed Output" } ],
+                    [ "LLMGateway", "StreamInputTokens",       { "stat": "Sum", "period": 300, "label": "Stream Input" } ],
+                    [ "LLMGateway", "StreamOutputTokens",      { "stat": "Sum", "period": 300, "label": "Stream Output" } ]
+                ],
+                "view": "timeSeries",
+                "region": "us-east-1",
+                "period": 300
+            }
+        },
+        {
+            "type": "text",
+            "x": 0, "y": 12, "width": 24, "height": 1,
+            "properties": { "markdown": "## Cache Hit Rate by Routing Rule" }
+        },
+        {
+            "type": "log",
+            "x": 0, "y": 13, "width": 24, "height": 8,
+            "properties": {
+                "title": "Cache Hit Rate by Metadata",
+                "region": "us-east-1",
+                "view": "table",
+                "query": "SOURCE '/ecs/gw-sam/gateway' | filter message in [\"cache hit\", \"successful non-streamed LLM response\", \"stream completed\", \"abort\", \"targets exhausted\", \"guardrail intervened\", \"mid-stream error\"] | stats sum(strcontains(message, \"cache hit\")) as cache_hits, count(*) as total_requests, avg(if(strcontains(message, \"cache hit\"), 100, 0)) as hit_rate_pct by metadata | sort total_requests desc"
+            }
+        },
+        {
+            "type": "text",
+            "x": 0, "y": 21, "width": 24, "height": 1,
+            "properties": { "markdown": "## Token Usage by Routing Rule" }
+        },
+        {
+            "type": "log",
+            "x": 0, "y": 22, "width": 24, "height": 8,
+            "properties": {
+                "title": "Token Usage by Routing Rule (Metadata)",
+                "region": "us-east-1",
+                "view": "table",
+                "query": "SOURCE '/ecs/gw-sam/gateway' | filter message in [\"successful non-streamed LLM response\", \"stream completed\"] | stats sum(input_tokens) as total_input_tokens, sum(output_tokens) as total_output_tokens, sum(input_tokens + output_tokens) as total_tokens by metadata | sort total_tokens desc"
+            }
+        },
+        {
+            "type": "text",
+            "x": 0, "y": 30, "width": 24, "height": 1,
+            "properties": { "markdown": "## Token Usage by Model" }
+        },
+        {
+            "type": "log",
+            "x": 0, "y": 31, "width": 24, "height": 8,
+            "properties": {
+                "title": "Token Consumption by Model",
+                "region": "us-east-1",
+                "view": "table",
+                "query": "SOURCE '/ecs/gw-sam/gateway' | filter message in [\"successful non-streamed LLM response\", \"stream completed\"] | stats sum(input_tokens) as total_input, sum(output_tokens) as total_output, count(*) as requests by model, provider | sort total_input desc"
+            }
+        }
+    ]
+}

@@ -1,0 +1,241 @@
+{
+    "widgets": [
+        {
+            "type": "text",
+            "x": 0, "y": 0, "width": 24, "height": 1,
+            "properties": { "markdown": "# Mantis — Health Overview" }
+        },
+        {
+            "type": "metric",
+            "x": 0, "y": 1, "width": 8, "height": 4,
+            "properties": {
+                "title": "Successful Requests",
+                "metrics": [
+                    [ { "expression": "FILL(m1,0)+FILL(m2,0)+FILL(m3,0)+FILL(m4,0)", "label": "Total Successes", "id": "e1" } ],
+                    [ "LLMGateway", "NonStreamedSuccessCount", { "id": "m1", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "StreamCompletedCount",    { "id": "m2", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "ExactCacheHitCount",      { "id": "m3", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "SemanticCacheHitCount",   { "id": "m4", "stat": "Sum", "visible": false } ]
+                ],
+                "view": "singleValue",
+                "region": "us-east-1",
+                "setPeriodToTimeRange": true
+            }
+        },
+        {
+            "type": "metric",
+            "x": 8, "y": 1, "width": 8, "height": 4,
+            "properties": {
+                "title": "Total Errors",
+                "metrics": [
+                    [ { "expression": "FILL(m1,0)+FILL(m2,0)+FILL(m3,0)", "label": "Total Errors", "id": "e1" } ],
+                    [ "LLMGateway", "AbortCount",            { "id": "m1", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "TargetsExhaustedCount", { "id": "m2", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "MidStreamErrorCount",   { "id": "m3", "stat": "Sum", "visible": false } ]
+                ],
+                "view": "singleValue",
+                "region": "us-east-1",
+                "setPeriodToTimeRange": true
+            }
+        },
+        {
+            "type": "metric",
+            "x": 16, "y": 1, "width": 8, "height": 4,
+            "properties": {
+                "title": "Guardrail Interventions",
+                "metrics": [
+                    [ { "expression": "FILL(m1,0)", "label": "Interventions", "id": "e1" } ],
+                    [ "LLMGateway", "GuardrailIntervenedCount", { "id": "m1", "stat": "Sum", "visible": false } ]
+                ],
+                "view": "singleValue",
+                "region": "us-east-1",
+                "setPeriodToTimeRange": true
+            }
+        },
+        {
+            "type": "metric",
+            "x": 0, "y": 5, "width": 12, "height": 4,
+            "properties": {
+                "title": "Response Success Rate %",
+                "metrics": [
+                    [ { "expression": "IF(FILL(m1,0)+FILL(m2,0)+FILL(m3,0)+FILL(m4,0)+FILL(m5,0)+FILL(m6,0)+FILL(m7,0)>0,(FILL(m1,0)+FILL(m2,0)+FILL(m3,0)+FILL(m4,0))/(FILL(m1,0)+FILL(m2,0)+FILL(m3,0)+FILL(m4,0)+FILL(m5,0)+FILL(m6,0)+FILL(m7,0))*100,0)", "label": "Response Success Rate %", "id": "e1" } ],
+                    [ "LLMGateway", "NonStreamedSuccessCount", { "id": "m1", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "StreamCompletedCount",    { "id": "m2", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "ExactCacheHitCount",      { "id": "m3", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "SemanticCacheHitCount",   { "id": "m4", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "AbortCount",              { "id": "m5", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "TargetsExhaustedCount",   { "id": "m6", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "MidStreamErrorCount",     { "id": "m7", "stat": "Sum", "visible": false } ]
+                ],
+                "view": "singleValue",
+                "region": "us-east-1",
+                "setPeriodToTimeRange": true
+            }
+        },
+        {
+            "type": "metric",
+            "x": 12, "y": 5, "width": 12, "height": 4,
+            "properties": {
+                "title": "Response Error Rate %",
+                "metrics": [
+                    [ { "expression": "IF(FILL(m1,0)+FILL(m2,0)+FILL(m3,0)+FILL(m4,0)+FILL(m5,0)+FILL(m6,0)+FILL(m7,0)>0,(FILL(m5,0)+FILL(m6,0)+FILL(m7,0))/(FILL(m1,0)+FILL(m2,0)+FILL(m3,0)+FILL(m4,0)+FILL(m5,0)+FILL(m6,0)+FILL(m7,0))*100,0)", "label": "Response Error Rate %", "id": "e1" } ],
+                    [ "LLMGateway", "NonStreamedSuccessCount", { "id": "m1", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "StreamCompletedCount",    { "id": "m2", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "ExactCacheHitCount",      { "id": "m3", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "SemanticCacheHitCount",   { "id": "m4", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "AbortCount",              { "id": "m5", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "TargetsExhaustedCount",   { "id": "m6", "stat": "Sum", "visible": false } ],
+                    [ "LLMGateway", "MidStreamErrorCount",     { "id": "m7", "stat": "Sum", "visible": false } ]
+                ],
+                "view": "singleValue",
+                "region": "us-east-1",
+                "setPeriodToTimeRange": true
+            }
+        },
+        {
+            "type": "text",
+            "x": 0, "y": 9, "width": 24, "height": 1,
+            "properties": { "markdown": "## Latency" }
+        },
+        {
+            "type": "metric",
+            "x": 0, "y": 10, "width": 8, "height": 6,
+            "properties": {
+                "title": "Non-Streamed Response Latency (ms)",
+                "metrics": [
+                    [ "LLMGateway", "NonStreamedLatencyMs", { "stat": "p50", "period": 60, "label": "p50" } ],
+                    [ "LLMGateway", "NonStreamedLatencyMs", { "stat": "p90", "period": 60, "label": "p90" } ],
+                    [ "LLMGateway", "NonStreamedLatencyMs", { "stat": "p99", "period": 60, "label": "p99" } ]
+                ],
+                "view": "timeSeries",
+                "region": "us-east-1",
+                "period": 60
+            }
+        },
+        {
+            "type": "metric",
+            "x": 8, "y": 10, "width": 8, "height": 6,
+            "properties": {
+                "title": "Streamed Response Latency (ms)",
+                "metrics": [
+                    [ "LLMGateway", "StreamLatencyMs", { "stat": "p50", "period": 60, "label": "p50" } ],
+                    [ "LLMGateway", "StreamLatencyMs", { "stat": "p90", "period": 60, "label": "p90" } ],
+                    [ "LLMGateway", "StreamLatencyMs", { "stat": "p99", "period": 60, "label": "p99" } ]
+                ],
+                "view": "timeSeries",
+                "region": "us-east-1",
+                "period": 60
+            }
+        },
+        {
+            "type": "metric",
+            "x": 16, "y": 10, "width": 8, "height": 6,
+            "properties": {
+                "title": "Cache vs LLM Latency — p50 (ms)",
+                "metrics": [
+                    [ "LLMGateway", "CacheHitLatencyMs",    { "stat": "p50", "period": 60, "label": "Cache Hit p50" } ],
+                    [ "LLMGateway", "NonStreamedLatencyMs", { "stat": "p50", "period": 60, "label": "LLM Non-Streamed p50" } ],
+                    [ "LLMGateway", "StreamLatencyMs",      { "stat": "p50", "period": 60, "label": "Stream p50" } ]
+                ],
+                "view": "timeSeries",
+                "region": "us-east-1",
+                "period": 60
+            }
+        },
+        {
+            "type": "text",
+            "x": 0, "y": 16, "width": 24, "height": 1,
+            "properties": { "markdown": "## Request Volume" }
+        },
+        {
+            "type": "metric",
+            "x": 0, "y": 17, "width": 12, "height": 6,
+            "properties": {
+                "title": "Requests by Outcome",
+                "metrics": [
+                    [ "LLMGateway", "NonStreamedSuccessCount", { "stat": "Sum", "period": 60, "label": "Non-Streamed" } ],
+                    [ "LLMGateway", "StreamCompletedCount",    { "stat": "Sum", "period": 60, "label": "Streamed" } ],
+                    [ "LLMGateway", "ExactCacheHitCount",      { "stat": "Sum", "period": 60, "label": "Exact Cache Hit" } ],
+                    [ "LLMGateway", "SemanticCacheHitCount",   { "stat": "Sum", "period": 60, "label": "Semantic Cache Hit" } ],
+                    [ "LLMGateway", "AbortCount",              { "stat": "Sum", "period": 60, "label": "Abort" } ],
+                    [ "LLMGateway", "TargetsExhaustedCount",   { "stat": "Sum", "period": 60, "label": "Exhausted" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": true,
+                "region": "us-east-1",
+                "period": 60
+            }
+        },
+        {
+            "type": "metric",
+            "x": 12, "y": 17, "width": 12, "height": 6,
+            "properties": {
+                "title": "Error Breakdown",
+                "metrics": [
+                    [ "LLMGateway", "AbortCount",            { "stat": "Sum", "period": 60, "label": "Aborts (4xx)" } ],
+                    [ "LLMGateway", "TargetsExhaustedCount", { "stat": "Sum", "period": 60, "label": "Targets Exhausted" } ],
+                    [ "LLMGateway", "MidStreamErrorCount",   { "stat": "Sum", "period": 60, "label": "Mid-Stream Errors" } ]
+                ],
+                "view": "timeSeries",
+                "region": "us-east-1",
+                "period": 60
+            }
+        },
+        {
+            "type": "text",
+            "x": 0, "y": 23, "width": 24, "height": 1,
+            "properties": { "markdown": "## Infrastructure Errors" }
+        },
+        {
+            "type": "metric",
+            "x": 0, "y": 24, "width": 12, "height": 6,
+            "properties": {
+                "title": "Redis Cache Errors",
+                "metrics": [
+                    [ "LLMGateway", "RedisCacheErrorCount", { "stat": "Sum", "period": 60, "label": "Redis Errors" } ]
+                ],
+                "view": "timeSeries",
+                "region": "us-east-1",
+                "period": 60
+            }
+        },
+        {
+            "type": "metric",
+            "x": 12, "y": 24, "width": 12, "height": 6,
+            "properties": {
+                "title": "Embedding Failures",
+                "metrics": [
+                    [ "LLMGateway", "EmbeddingFailureCount", { "stat": "Sum", "period": 60, "label": "Embedding Failures" } ]
+                ],
+                "view": "timeSeries",
+                "region": "us-east-1",
+                "period": 60
+            }
+        },
+        {
+            "type": "text",
+            "x": 0, "y": 30, "width": 24, "height": 1,
+            "properties": { "markdown": "## Latency by Dimension" }
+        },
+        {
+            "type": "log",
+            "x": 0, "y": 31, "width": 12, "height": 8,
+            "properties": {
+                "title": "Average Latency per Model (ms)",
+                "region": "us-east-1",
+                "view": "table",
+                "query": "SOURCE '/ecs/gw-sam/gateway' | filter ispresent(latency_ms) | stats avg(latency_ms) as avg_latency_ms by model | sort avg_latency_ms desc"
+            }
+        },
+        {
+            "type": "log",
+            "x": 12, "y": 31, "width": 12, "height": 8,
+            "properties": {
+                "title": "Average Latency per Routing Rule (ms)",
+                "region": "us-east-1",
+                "view": "table",
+                "query": "SOURCE '/ecs/gw-sam/gateway' | filter ispresent(latency_ms) | stats avg(latency_ms) as avg_latency_ms by metadata | sort avg_latency_ms desc"
+            }
+        }
+    ]
+}

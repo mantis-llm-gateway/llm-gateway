@@ -1,0 +1,97 @@
+{
+    "widgets": [
+        {
+            "type": "text",
+            "x": 0, "y": 0, "width": 24, "height": 1,
+            "properties": { "markdown": "# Mantis — Routing & Reliability" }
+        },
+        {
+            "type": "metric",
+            "x": 0, "y": 1, "width": 12, "height": 4,
+            "properties": {
+                "title": "Failovers",
+                "metrics": [
+                    [ "LLMGateway", "FailoverCount", { "stat": "Sum", "period": 300, "label": "Failovers" } ]
+                ],
+                "view": "singleValue",
+                "region": "us-east-1",
+                "period": 300
+            }
+        },
+        {
+            "type": "metric",
+            "x": 12, "y": 1, "width": 12, "height": 4,
+            "properties": {
+                "title": "Failover Rate %",
+                "metrics": [
+                    [ { "expression": "(m1/(m2+m3+m4+m5+m6+m7))*100", "label": "Failover Rate %", "id": "e1", "period": 300 } ],
+                    [ "LLMGateway", "FailoverCount",           { "id": "m1", "stat": "Sum", "period": 300, "visible": false } ],
+                    [ "LLMGateway", "NonStreamedSuccessCount", { "id": "m2", "stat": "Sum", "period": 300, "visible": false } ],
+                    [ "LLMGateway", "StreamCompletedCount",    { "id": "m3", "stat": "Sum", "period": 300, "visible": false } ],
+                    [ "LLMGateway", "CacheHitCount",           { "id": "m4", "stat": "Sum", "period": 300, "visible": false } ],
+                    [ "LLMGateway", "AbortCount",              { "id": "m5", "stat": "Sum", "period": 300, "visible": false } ],
+                    [ "LLMGateway", "TargetsExhaustedCount",   { "id": "m6", "stat": "Sum", "period": 300, "visible": false } ],
+                    [ "LLMGateway", "MidStreamErrorCount",     { "id": "m7", "stat": "Sum", "period": 300, "visible": false } ]
+                ],
+                "view": "singleValue",
+                "region": "us-east-1",
+                "period": 300
+            }
+        },
+        {
+            "type": "text",
+            "x": 0, "y": 5, "width": 24, "height": 1,
+            "properties": { "markdown": "## Failover & Retry Rates" }
+        },
+        {
+            "type": "log",
+            "x": 0, "y": 6, "width": 12, "height": 8,
+            "properties": {
+                "title": "Failover Rate by Model",
+                "region": "us-east-1",
+                "view": "table",
+                "query": "SOURCE '/ecs/gw-sam/gateway' | filter message in [\"failover\", \"successful non-streamed LLM response\", \"stream completed\"] | stats sum(strcontains(message, \"failover\")) as failovers, count(*) as total_attempts, avg(if(strcontains(message, \"failover\"), 100, 0)) as failover_rate_pct by model | sort failover_rate_pct desc"
+            }
+        },
+        {
+            "type": "log",
+            "x": 12, "y": 6, "width": 12, "height": 8,
+            "properties": {
+                "title": "Retry Rate by Model",
+                "region": "us-east-1",
+                "view": "table",
+                "query": "SOURCE '/ecs/gw-sam/gateway' | filter message in [\"retry target\", \"successful non-streamed LLM response\", \"stream completed\"] | stats sum(strcontains(message, \"retry target\")) as retries, count(*) as total_attempts, avg(if(strcontains(message, \"retry target\"), 100, 0)) as retry_rate_pct by model | sort retry_rate_pct desc"
+            }
+        },
+        {
+            "type": "text",
+            "x": 0, "y": 14, "width": 24, "height": 1,
+            "properties": { "markdown": "## Failovers by Routing Rule" }
+        },
+        {
+            "type": "log",
+            "x": 0, "y": 15, "width": 24, "height": 8,
+            "properties": {
+                "title": "Failovers by Metadata",
+                "region": "us-east-1",
+                "view": "table",
+                "query": "SOURCE '/ecs/gw-sam/gateway' | filter message = \"failover\" | stats count(*) as failovers by metadata | sort failovers desc"
+            }
+        },
+        {
+            "type": "text",
+            "x": 0, "y": 23, "width": 24, "height": 1,
+            "properties": { "markdown": "## Bedrock Errors" }
+        },
+        {
+            "type": "log",
+            "x": 0, "y": 24, "width": 24, "height": 8,
+            "properties": {
+                "title": "Bedrock Errors by Code & Model",
+                "region": "us-east-1",
+                "view": "table",
+                "query": "SOURCE '/ecs/gw-sam/gateway' | filter message = \"bedrock call failed\" | stats count(*) as errors by provider, model, err_code | sort provider, model, errors desc"
+            }
+        }
+    ]
+}

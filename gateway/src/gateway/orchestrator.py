@@ -39,6 +39,8 @@ async def orchestrate(
     use_semantic_cache = _should_use_semantic_cache(messages, ctx)
 
     last_status: int | None = None
+    last_provider: str | None = None
+    last_model: str | None = None
     for target in resolved_chain:
         if datetime.now(UTC) > deadline:
             return JSONResponse(status_code=504, content={"error": "request timed out"})
@@ -58,7 +60,7 @@ async def orchestrate(
                 logger.info(
                     "cache hit",
                     extra={
-                        "metadata": metadata,
+                        "metadata": json.dumps(metadata, sort_keys=True),
                         "stream": stream,
                         "provider": target.provider,
                         "model": target.model,
@@ -95,7 +97,7 @@ async def orchestrate(
                     logger.info(
                         "successful non-streamed LLM response",
                         extra={
-                            "metadata": metadata,
+                            "metadata": json.dumps(metadata, sort_keys=True),
                             "stream": stream,
                             "provider": target.provider,
                             "model": target.model,
@@ -112,8 +114,10 @@ async def orchestrate(
                 logger.warning(
                     "abort",
                     extra={
-                        "metadata": metadata,
+                        "metadata": json.dumps(metadata, sort_keys=True),
                         "stream": stream,
+                        "provider": target.provider,
+                        "model": target.model,
                         "status_code": code,
                         "error_message": msg,
                         "latency_ms": latency_ms,
@@ -122,7 +126,17 @@ async def orchestrate(
                 return JSONResponse(status_code=code, content={"error": msg})
             case Failover(status_code=code):
                 last_status = code
-                logger.info("failover", extra={"metadata": metadata, "stream": stream})
+                last_provider = target.provider
+                last_model = target.model
+                logger.info(
+                    "failover",
+                    extra={
+                        "metadata": json.dumps(metadata, sort_keys=True),
+                        "stream": stream,
+                        "provider": target.provider,
+                        "model": target.model,
+                    },
+                )
                 continue
 
     if last_status is not None:
@@ -130,7 +144,9 @@ async def orchestrate(
         logger.warning(
             "targets exhausted",
             extra={
-                "metadata": metadata,
+                "metadata": json.dumps(metadata, sort_keys=True),
+                "provider": last_provider,
+                "model": last_model,
                 "status_code": last_status,
                 "error_message": "service unavailable",
                 "latency_ms": latency_ms,
