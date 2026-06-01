@@ -116,6 +116,7 @@ async def _logged_token_strings(
         )
         raise
 
+
 async def _set_cooldown(redis: Redis, target: ResolvedTarget, cooldown_ttl: int) -> None:
     await redis.set(f"gateway:cooldown:{target.provider}:{target.model}", 1, ex=cooldown_ttl)
 

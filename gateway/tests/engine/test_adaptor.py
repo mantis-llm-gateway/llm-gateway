@@ -5,8 +5,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from botocore.exceptions import ClientError
+from fastapi.responses import StreamingResponse
 
 from gateway.engine import Message, ProviderAdaptor
+from gateway.orchestrator import orchestrate
+from tests.conftest import make_messages
 
 MODEL_ID = "google.gemma-3-4b-it"
 MESSAGES: list[Message] = [{"role": "user", "content": [{"text": "Hello"}]}]
@@ -299,3 +302,24 @@ async def test_stream_idle_timeout(provider_adaptor: ProviderAdaptor):
                 MODEL_ID, MESSAGES, STREAM_IDLE_TIMEOUT
             )
         ]
+
+
+@pytest.mark.asyncio
+async def test_timeout_stream_abort(test_context, provider_adaptor):
+    test_context.adaptor = provider_adaptor
+    client = make_mock_bedrock_client(provider_adaptor)
+    client.converse_stream = AsyncMock(
+        return_value=make_stream_bedrock_timedout_response("mock response")
+    )
+
+    result = await orchestrate(
+        {"task-type": "code_generation"},
+        messages=make_messages(),
+        stream=True,
+        ctx=test_context,
+    )
+
+    assert isinstance(result, StreamingResponse)
+
+    chunks = [chunk async for chunk in result.body_iterator]
+    assert chunks == ["\nerror: provider timeout - check logs for more information\n"]

@@ -1,4 +1,5 @@
 import pytest
+from botocore.exceptions import ClientError
 from fastapi.testclient import TestClient
 
 from gateway.cache.prompt_cache import PromptCache
@@ -7,6 +8,7 @@ from gateway.engine import GuardrailIntervention, StreamResult
 from gateway.main import app
 from gateway.models import (
     AliasConfig,
+    ChatMessageRequest,
     Config,
     PromptCacheConfig,
     RoutingRuleConfig,
@@ -76,7 +78,7 @@ class FakeAdaptor:
         self,
         model_id: str,
         messages: list,
-        stream_idle_timeout: int,
+        _stream_idle_timeout: int,
         *,
         temperature: float | None = None,
         max_tokens: int | None = None,
@@ -102,6 +104,31 @@ class FakeAdaptor:
 
         result._chunks = chunks()
         return result
+
+
+def make_messages(content: str = "hi") -> list[ChatMessageRequest]:
+    return [ChatMessageRequest(role="user", content=content)]
+
+
+async def _timeout_gen():
+    raise ClientError(
+        {"Error": {"Code": "ChunkTimeOutException", "Message": "timeout"}},
+        "ReceiveNextChunk",
+    )
+    yield
+
+
+async def _client_error_gen():
+    raise ClientError(
+        {"Error": {"Code": "ServiceUnavailableException", "Message": "unavailable"}},
+        "ReceiveNextChunk",
+    )
+    yield
+
+
+async def _generic_error_gen():
+    raise ValueError("something went wrong")
+    yield
 
 
 @pytest.fixture
