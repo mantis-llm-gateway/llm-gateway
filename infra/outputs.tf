@@ -18,6 +18,16 @@ output "alb_dns_name" {
   value       = aws_lb.gw-alb.dns_name
 }
 
+output "alb_zone_id" {
+  description = "Canonical hosted zone ID for a Route 53 alias to the ALB"
+  value       = aws_lb.gw-alb.zone_id
+}
+
+output "gateway_url" {
+  description = "Public URL for the gateway"
+  value       = local.gateway_url
+}
+
 output "ecs_cluster_name" {
   description = "ECS cluster name used by deployment scripts"
   value       = aws_ecs_cluster.gw.name
