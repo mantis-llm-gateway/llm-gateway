@@ -122,7 +122,6 @@ async def execute_attempt(
     *,
     messages: list[ChatMessageRequest],
     metadata: dict[str, str],
-    prompt: str,
     stream: bool,
     start_time: datetime,
     adaptor: ProviderAdaptor,

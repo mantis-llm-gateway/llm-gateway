@@ -42,7 +42,6 @@ async def orchestrate(
     deadline = start_time + timedelta(seconds=ctx.config.initial_response_timeout)
     resolved_chain = resolve_attempt_chain(metadata, ctx.config)
     cache_prompt = _conversation_cache_prompt(messages, system)
-    prompt = cache_prompt
     use_semantic_cache = _should_use_semantic_cache(messages, ctx)
     skip_cache = _should_skip_cache(temperature, ctx)
 
@@ -79,7 +78,6 @@ async def orchestrate(
             target,
             messages=messages,
             metadata=metadata,
-            prompt=prompt,
             stream=stream,
             start_time=start_time,
             adaptor=ctx.adaptor,
@@ -96,7 +94,7 @@ async def orchestrate(
                 if not stream:
                     if not skip_cache:
                         await ctx.prompt_cache.set(
-                            prompt=prompt,
+                            prompt=cache_prompt,
                             response=result["response"],
                             model=target.model,
                             provider=target.provider,
