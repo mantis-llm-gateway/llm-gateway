@@ -18,7 +18,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import TypeAdapter, ValidationError
 from pythonjsonlogger.json import JsonFormatter
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from gateway.context import AppContext, build_context, shutdown_context
 from gateway.models import ChatCompletionsRequest, Config, ConfigResponse
@@ -179,7 +179,7 @@ class OverallTimeoutMiddleware:
         response_complete = False
         content_type = b""
 
-        async def tracked_send(message):
+        async def tracked_send(message: Message):
             nonlocal headers_sent, response_complete, content_type
             if message["type"] == "http.response.start":
                 headers_sent = True
