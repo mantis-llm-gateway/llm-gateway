@@ -21,6 +21,14 @@ from gateway.routing import ResolvedTarget
 logger = logging.getLogger(__name__)
 
 
+def calculate_latency_ms(start_time):
+    if start_time is not None:
+        latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+    else:
+        latency_ms = "start time unavailable"
+    return latency_ms
+
+
 def _extra(
     metadata: dict[str, str],
     stream: bool,
@@ -81,13 +89,13 @@ async def _logged_token_strings(
     metadata: dict[str, str],
     stream: bool,
     target: ResolvedTarget,
-    start_time: datetime,
+    start_time: datetime | None,
 ) -> AsyncIterator[str]:
     logger.info("stream started", extra=_extra(metadata, stream, target))
     try:
         async for token in stream_result:
             yield token
-        latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+        latency_ms = calculate_latency_ms(start_time)
         if stream_result.guardrail_info:
             logger.warning(
                 "guardrail intervened",
@@ -104,13 +112,13 @@ async def _logged_token_strings(
                 metadata,
                 stream,
                 target,
-                latency_ms=latency_ms,
+                latency_ms=calculate_latency_ms(start_time),
                 input_tokens=stream_result.usage_info.get("input_tokens", 0),
                 output_tokens=stream_result.usage_info.get("output_tokens", 0),
             ),
         )
     except BaseException as e:
-        latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+        latency_ms = calculate_latency_ms(start_time)
         logger.error(
             "mid-stream error",
             extra=_extra(metadata, stream, target, latency_ms=latency_ms, error=str(e)),
@@ -128,7 +136,7 @@ async def execute_attempt(
     messages: list[ChatMessageRequest],
     metadata: dict[str, str],
     stream: bool,
-    start_time: datetime,
+    start_time: datetime | None,
     adaptor: ProviderAdaptor,
     redis: Redis,
     target_retries: int,

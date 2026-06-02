@@ -1,7 +1,7 @@
 import json
 import logging
 from collections.abc import AsyncGenerator, AsyncIterator
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 
 from botocore.exceptions import ClientError
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from gateway.context import AppContext
 from gateway.engine import Abort, CompleteSuccess, Failover, StreamingSuccess, execute_attempt
 from gateway.engine.errors import bedrock_error_code
+from gateway.engine.executor import calculate_latency_ms
 from gateway.models import ChatMessageRequest
 from gateway.routing import resolve_attempt_chain
 
@@ -44,6 +45,7 @@ async def orchestrate(
     temperature: float | None = None,
     max_tokens: int | None = None,
     system: str | None = None,
+    start_time: datetime | None,
 ) -> JSONResponse | StreamingResponse | None:
     """Run a chat-completion request through the gateway.
 
@@ -61,8 +63,6 @@ async def orchestrate(
     The prompt cache stores a canonical JSON representation of the whole
     conversation, so exact cache hits are scoped to the complete chat history.
     """
-    start_time = datetime.now(UTC)
-    deadline = start_time + timedelta(seconds=ctx.config.initial_response_timeout)
     resolved_chain = resolve_attempt_chain(metadata, ctx.config)
     cache_prompt = _conversation_cache_prompt(messages, system)
     use_semantic_cache = _should_use_semantic_cache(messages, ctx)
@@ -72,9 +72,6 @@ async def orchestrate(
     last_provider: str | None = None
     last_model: str | None = None
     for target in resolved_chain:
-        if datetime.now(UTC) > deadline:
-            return JSONResponse(status_code=504, content={"error": "request timed out"})
-
         if await ctx.redis.exists(f"gateway:cooldown:{target.provider}:{target.model}"):
             continue
 
@@ -86,7 +83,7 @@ async def orchestrate(
                 use_semantic=use_semantic_cache,
             )
             if cached is not None:
-                latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+                latency_ms = calculate_latency_ms(start_time)
                 logger.info(
                     "cache hit",
                     extra={
@@ -127,7 +124,7 @@ async def orchestrate(
                             use_semantic=use_semantic_cache,
                         )
 
-                    latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+                    latency_ms = calculate_latency_ms(start_time)
                     logger.info(
                         "successful non-streamed LLM response",
                         extra={
@@ -147,7 +144,7 @@ async def orchestrate(
                     media_type="text/plain",
                 )
             case Abort(status_code=code, message=msg):
-                latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+                latency_ms = calculate_latency_ms(start_time)
                 logger.warning(
                     "abort",
                     extra={
@@ -177,7 +174,7 @@ async def orchestrate(
                 continue
 
     if last_status is not None:
-        latency_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+        latency_ms = calculate_latency_ms(start_time)
         logger.warning(
             "targets exhausted",
             extra={

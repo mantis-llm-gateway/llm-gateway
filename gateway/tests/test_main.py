@@ -1,10 +1,29 @@
+import asyncio
 import json
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 from botocore.exceptions import ClientError
 
-from gateway.main import _load_config
+from gateway.main import OverallTimeoutMiddleware, _load_config
+
+
+def _timeout_scope(timeout: float) -> dict:
+    return {
+        "type": "http",
+        "app": SimpleNamespace(
+            state=SimpleNamespace(
+                context=SimpleNamespace(
+                    config=SimpleNamespace(initial_response_timeout=timeout),
+                ),
+            ),
+        ),
+    }
+
+
+async def _empty_receive() -> dict:
+    return {"type": "http.request", "body": b"", "more_body": False}
 
 
 class FakeSsmClient:
@@ -69,6 +88,89 @@ class FakeAioboto3Session:
         if service_name in self._clients:
             return self._clients[service_name]
         return self._client
+
+
+@pytest.mark.asyncio
+async def test_overall_timeout_uses_initial_response_timeout_from_config(monkeypatch):
+    captured_timeouts: list[float] = []
+
+    async def downstream_app(scope, receive, send):
+        assert "overall_timeout_start" in scope
+
+    async def send(message):
+        pass
+
+    async def fake_wait_for(awaitable, timeout):
+        captured_timeouts.append(timeout)
+        return await awaitable
+
+    monkeypatch.setattr("gateway.main.asyncio.wait_for", fake_wait_for)
+
+    middleware = OverallTimeoutMiddleware(downstream_app)
+
+    await middleware(_timeout_scope(0.123), _empty_receive, send)
+
+    assert captured_timeouts == [0.123]
+
+
+@pytest.mark.asyncio
+async def test_overall_timeout_cancels_request_and_returns_504_before_headers():
+    sent: list[dict] = []
+    cancelled = asyncio.Event()
+
+    async def slow_app(scope, receive, send):
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    async def send(message):
+        sent.append(message)
+
+    middleware = OverallTimeoutMiddleware(slow_app)
+
+    await middleware(_timeout_scope(0.01), _empty_receive, send)
+
+    assert cancelled.is_set()
+    assert sent[0]["type"] == "http.response.start"
+    assert sent[0]["status"] == 504
+    body = b""
+    for sent_message in sent:
+        if sent_message["type"] == "http.response.body":
+            body += sent_message.get("body", b"")
+    assert json.loads(body) == {"error": "request timed out"}
+
+
+@pytest.mark.asyncio
+async def test_overall_timeout_finishes_body_when_headers_were_already_sent():
+    sent: list[dict] = []
+    cancelled = asyncio.Event()
+
+    async def slow_streaming_app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    async def send(message):
+        sent.append(message)
+
+    middleware = OverallTimeoutMiddleware(slow_streaming_app)
+
+    await middleware(_timeout_scope(0.01), _empty_receive, send)
+
+    assert cancelled.is_set()
+    assert sent == [
+        {"type": "http.response.start", "status": 200, "headers": []},
+        {
+            "type": "http.response.body",
+            "body": b"\nerror: request timed out\n",
+            "more_body": False,
+        },
+    ]
 
 
 @pytest.mark.asyncio
@@ -239,6 +341,27 @@ def test_handler_returns_200_with_response_text(client):
     )
     assert response.status_code == 200
     assert response.json() == {"response": "fake response"}
+
+
+def test_handler_times_out_through_fastapi_stack(client, test_context, monkeypatch):
+    test_context.config.initial_response_timeout = 1
+
+    async def slow_orchestrate(*args, **kwargs):
+        await asyncio.sleep(2)
+
+    monkeypatch.setattr("gateway.main.orchestrate", slow_orchestrate)
+
+    response = client.post(
+        "/v1/chat/completions",
+        headers={"metadata": json.dumps({"task-type": "code_generation"})},
+        json={
+            "messages": [{"role": "user", "content": "hello"}],
+            "stream": False,
+        },
+    )
+
+    assert response.status_code == 504
+    assert response.json() == {"error": "request timed out"}
 
 
 def test_handler_passes_full_chat_history_to_provider(client, fake_adaptor):

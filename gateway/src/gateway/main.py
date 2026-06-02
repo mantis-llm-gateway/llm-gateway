@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import mimetypes
@@ -5,7 +6,7 @@ import secrets
 import sys
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
-from datetime import UTC
+from datetime import UTC, datetime
 from email.utils import format_datetime
 from pathlib import Path
 from posixpath import join as join_s3_key
@@ -17,6 +18,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import TypeAdapter, ValidationError
 from pythonjsonlogger.json import JsonFormatter
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from gateway.context import AppContext, build_context, shutdown_context
 from gateway.models import ChatCompletionsRequest, Config, ConfigResponse
@@ -159,7 +161,48 @@ async def lifespan(app: FastAPI):
         await shutdown_context(app.state.context)
 
 
+def get_context(request: Request) -> AppContext:
+    return request.app.state.context
+
+
+class OverallTimeoutMiddleware:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        timeout = scope["app"].state.context.config.initial_response_timeout
+
+        headers_sent = False
+
+        async def tracked_send(message):
+            nonlocal headers_sent
+            if message["type"] == "http.response.start":
+                headers_sent = True
+            await send(message)
+
+        try:
+            scope["overall_timeout_start"] = datetime.now(UTC)
+            await asyncio.wait_for(self.app(scope, receive, tracked_send), timeout=timeout)
+        except TimeoutError:
+            if not headers_sent:
+                response = JSONResponse(status_code=504, content={"error": "request timed out"})
+                await response(scope, receive, send)
+            else:
+                await send(
+                    {
+                        "type": "http.response.body",
+                        "body": b"\nerror: request timed out\n",
+                        "more_body": False,
+                    }
+                )
+
+
 app = FastAPI(lifespan=lifespan)
+
 _metadata_adapter = TypeAdapter(dict[str, str])
 
 
@@ -170,8 +213,7 @@ async def set_request_id(request: Request, call_next):
     return await call_next(request)
 
 
-def get_context(request: Request) -> AppContext:
-    return request.app.state.context
+app.add_middleware(OverallTimeoutMiddleware)
 
 
 def parse_metadata_header(metadata: str | None = Header(default=None)) -> dict[str, str]:
@@ -197,10 +239,12 @@ async def get_config(ctx: AppContext = Depends(get_context)) -> ConfigResponse:
 
 @app.post("/v1/chat/completions", response_model=None)
 async def chat_completions(
+    request: Request,
     body: ChatCompletionsRequest,
     metadata: dict[str, str] = Depends(parse_metadata_header),
     ctx: AppContext = Depends(get_context),
 ) -> JSONResponse | StreamingResponse | None:
+    start_time: datetime = request.scope["overall_timeout_start"]
     return await orchestrate(
         metadata,
         body.messages,
@@ -209,6 +253,7 @@ async def chat_completions(
         temperature=body.temperature,
         max_tokens=body.max_tokens,
         system=body.system,
+        start_time=start_time,
     )
 
 
