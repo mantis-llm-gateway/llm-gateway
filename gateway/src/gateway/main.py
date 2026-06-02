@@ -170,28 +170,44 @@ class OverallTimeoutMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":
+        if scope["type"] != "http" or scope["path"] != "/v1/chat/completions":
             await self.app(scope, receive, send)
             return
 
-        timeout = scope["app"].state.context.config.initial_response_timeout
-
+        timeout_seconds = scope["app"].state.context.config.initial_response_timeout
         headers_sent = False
+        response_complete = False
+        content_type = b""
 
         async def tracked_send(message):
-            nonlocal headers_sent
+            nonlocal headers_sent, response_complete, content_type
             if message["type"] == "http.response.start":
                 headers_sent = True
+                headers = dict(message.get("headers", []))
+                content_type = headers.get(b"content-type", b"")
+            elif message["type"] == "http.response.body" and not message.get("more_body", False):
+                response_complete = True
             await send(message)
 
+        scope["overall_timeout_start"] = datetime.now(UTC)
+        timeout_context = asyncio.timeout(timeout_seconds)
+
         try:
-            scope["overall_timeout_start"] = datetime.now(UTC)
-            await asyncio.wait_for(self.app(scope, receive, tracked_send), timeout=timeout)
+            async with timeout_context:
+                await self.app(scope, receive, tracked_send)
         except TimeoutError:
+            if not timeout_context.expired():
+                raise
+
+            if response_complete:
+                return
+
             if not headers_sent:
                 response = JSONResponse(status_code=504, content={"error": "request timed out"})
                 await response(scope, receive, send)
-            else:
+                return
+
+            if content_type.startswith(b"text/plain"):
                 await send(
                     {
                         "type": "http.response.body",

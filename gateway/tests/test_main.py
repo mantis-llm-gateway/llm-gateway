@@ -19,6 +19,7 @@ def _timeout_scope(timeout: float) -> dict:
                 ),
             ),
         ),
+        "path": "/v1/chat/completions",
     }
 
 
@@ -100,11 +101,17 @@ async def test_overall_timeout_uses_initial_response_timeout_from_config(monkeyp
     async def send(message):
         pass
 
-    async def fake_wait_for(awaitable, timeout):
-        captured_timeouts.append(timeout)
-        return await awaitable
+    class FakeTimeout:
+        def __init__(self, timeout):
+            captured_timeouts.append(timeout)
 
-    monkeypatch.setattr("gateway.main.asyncio.wait_for", fake_wait_for)
+        async def __aenter__(self):
+            pass
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    monkeypatch.setattr("gateway.main.asyncio.timeout", FakeTimeout)
 
     middleware = OverallTimeoutMiddleware(downstream_app)
 
@@ -148,7 +155,13 @@ async def test_overall_timeout_finishes_body_when_headers_were_already_sent():
     cancelled = asyncio.Event()
 
     async def slow_streaming_app(scope, receive, send):
-        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [(b"content-type", b"text/plain")],
+            }
+        )
         try:
             await asyncio.sleep(10)
         except asyncio.CancelledError:
@@ -164,7 +177,11 @@ async def test_overall_timeout_finishes_body_when_headers_were_already_sent():
 
     assert cancelled.is_set()
     assert sent == [
-        {"type": "http.response.start", "status": 200, "headers": []},
+        {
+            "type": "http.response.start",
+            "status": 200,
+            "headers": [(b"content-type", b"text/plain")],
+        },
         {
             "type": "http.response.body",
             "body": b"\nerror: request timed out\n",
