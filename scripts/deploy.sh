@@ -25,7 +25,7 @@ GATEWAY_CONTAINER_IMAGE="$(terraform_output gateway_container_image)"
 DASHBOARD_BUCKET_NAME="$(terraform_output dashboard_bucket_name)"
 ECS_CLUSTER_NAME="$(terraform_output ecs_cluster_name)"
 ECS_SERVICE_NAME="$(terraform_output ecs_service_name)"
-ALB_DNS_NAME="$(terraform_output alb_dns_name)"
+GATEWAY_URL="$(terraform_output gateway_url)"
 ECR_REGISTRY="${ECR_REPOSITORY_URL%%/*}"
 
 printf 'Building dashboard...\n'
@@ -51,4 +51,4 @@ printf 'Starting ECS service...\n'
   --desired-count 1 \
   --force-new-deployment >/dev/null
 
-printf '\nDeployment started: http://%s\n' "$ALB_DNS_NAME"
+printf '\nDeployment started: %s\n' "$GATEWAY_URL"

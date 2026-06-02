@@ -70,7 +70,7 @@ resource "aws_ecs_service" "gw" {
   cluster         = aws_ecs_cluster.gw.id
   task_definition = aws_ecs_task_definition.gw.arn
   desired_count   = var.ecs_desired_count
-  depends_on      = [aws_lb_listener.http]
+  depends_on      = [aws_lb_listener.http, aws_lb_listener.https]
 
   capacity_provider_strategy {
     capacity_provider = "FARGATE"

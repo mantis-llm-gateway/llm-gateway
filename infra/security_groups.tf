@@ -13,6 +13,23 @@ resource "aws_security_group_rule" "http_in" {
   description       = "Allowed HTTP traffic"
 }
 
+resource "aws_security_group_rule" "https_in" {
+  count = var.enable_https ? 1 : 0
+
+  type              = "ingress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks       = var.allowed_http_cidrs
+  security_group_id = aws_security_group.alb_sg.id
+  description       = "Allowed HTTPS traffic"
+}
+
+moved {
+  from = aws_security_group_rule.https_in
+  to   = aws_security_group_rule.https_in[0]
+}
+
 resource "aws_security_group_rule" "alb_egress" {
   type                     = "egress"
   from_port                = 8000

@@ -18,9 +18,46 @@ resource "aws_lb_listener" "http" {
   protocol          = "HTTP"
 
   default_action {
+    type             = var.enable_https ? "redirect" : "forward"
+    target_group_arn = var.enable_https ? null : aws_lb_target_group.gw-tg.arn
+
+    dynamic "redirect" {
+      for_each = var.enable_https ? [true] : []
+
+      content {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+  }
+}
+
+resource "aws_lb_listener" "https" {
+  count = var.enable_https ? 1 : 0
+
+  load_balancer_arn = aws_lb.gw-alb.arn
+  port              = 443
+  protocol          = "HTTPS"
+  certificate_arn   = var.acm_certificate_arn
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-Res-2021-06"
+
+  default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.gw-tg.arn
   }
+
+  lifecycle {
+    precondition {
+      condition     = var.acm_certificate_arn != null && var.gateway_domain_name != null
+      error_message = "acm_certificate_arn and gateway_domain_name must be set when enable_https is true."
+    }
+  }
+}
+
+moved {
+  from = aws_lb_listener.https
+  to   = aws_lb_listener.https[0]
 }
 
 resource "aws_lb_target_group" "gw-tg" {

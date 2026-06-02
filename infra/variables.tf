@@ -72,9 +72,37 @@ variable "cache_node_type" {
   default     = "cache.t4g.micro"
 }
 
+variable "enable_https" {
+  type        = bool
+  description = "Whether to expose an HTTPS listener and redirect public HTTP traffic to HTTPS"
+  default     = false
+}
+
+variable "acm_certificate_arn" {
+  type        = string
+  description = "ARN of an ACM certificate for the public gateway hostname"
+  default     = null
+
+  validation {
+    condition     = var.acm_certificate_arn == null || can(regex("^arn:[^:]+:acm:[^:]+:[0-9]{12}:certificate/.+$", var.acm_certificate_arn))
+    error_message = "acm_certificate_arn must be an ACM certificate ARN."
+  }
+}
+
+variable "gateway_domain_name" {
+  type        = string
+  description = "Public DNS hostname covered by the ACM certificate, such as gateway.example.com"
+  default     = null
+
+  validation {
+    condition     = var.gateway_domain_name == null || can(regex("^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$", var.gateway_domain_name))
+    error_message = "gateway_domain_name must be a valid DNS hostname."
+  }
+}
+
 variable "allowed_http_cidrs" {
   type        = list(string)
-  description = "CIDR ranges allowed to access the public HTTP listener"
+  description = "CIDR ranges allowed to access the public HTTP and HTTPS listeners"
   default     = ["0.0.0.0/0"]
 }
 
@@ -83,4 +111,5 @@ locals {
   routing_config_parameter_name = "${local.ssm_parameter_prefix}/routing/config"
   dashboard_bucket_name         = "gw-${var.namespace}-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}-dashboard"
   gateway_container_image       = "${aws_ecr_repository.gateway.repository_url}:${var.container_image_tag}"
+  gateway_url                   = var.enable_https ? (var.gateway_domain_name != null ? "https://${var.gateway_domain_name}" : null) : "http://${aws_lb.gw-alb.dns_name}"
 }
