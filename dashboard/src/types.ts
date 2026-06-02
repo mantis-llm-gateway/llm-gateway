@@ -38,6 +38,7 @@ export interface Config {
   target_retries: number;
   fallbacks: string[];
   initial_response_timeout: number;
+  stream_idle_timeout: number;
   default_model: string;
   cooldown_ttl: number;
   prompt_cache: PromptCacheConfig;
@@ -62,6 +63,7 @@ export interface FormValues {
   target_retries: number;
   fallbacks: { value: string }[];
   initial_response_timeout: number;
+  stream_idle_timeout: number;
   default_model: string;
   cooldown_ttl: number;
   prompt_cache: PromptCacheConfig;

@@ -45,6 +45,11 @@ export function GeneralSettingsSection({ control, register }: GeneralSettingsSec
       </div>
 
       <div className="field-row">
+        <label>Stream Idle Timeout (s)</label>
+        <input type="number" {...register('stream_idle_timeout', { valueAsNumber: true })} />
+      </div>
+
+      <div className="field-row">
         <label>Cooldown TTL (s)</label>
         <input type="number" {...register('cooldown_ttl', { valueAsNumber: true })} />
       </div>

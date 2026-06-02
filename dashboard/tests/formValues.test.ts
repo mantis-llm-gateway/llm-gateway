@@ -19,6 +19,7 @@ const config: Config = {
   target_retries: 2,
   fallbacks: ['fallback'],
   initial_response_timeout: 30,
+  stream_idle_timeout: 1,
   default_model: 'primary',
   cooldown_ttl: 60,
   prompt_cache: {
@@ -52,6 +53,7 @@ test('coerces numeric form values before sending config to the API', () => {
     ...toFormValues(config),
     target_retries: '4',
     initial_response_timeout: '45',
+    stream_idle_timeout: '3',
     cooldown_ttl: '90',
     routing_rules: [
       {
@@ -74,6 +76,7 @@ test('coerces numeric form values before sending config to the API', () => {
     ...config,
     target_retries: 4,
     initial_response_timeout: 45,
+    stream_idle_timeout: 3,
     cooldown_ttl: 90,
     routing_rules: [
       {

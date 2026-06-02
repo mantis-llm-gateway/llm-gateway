@@ -36,7 +36,6 @@ def make_config(**overrides) -> Config:
         default_model="model-a",
         fallbacks=["fallback"],
         cooldown_ttl=60,
-        stream_idle_timeout=10,
         prompt_cache=PromptCacheConfig(
             ttl_seconds=60,
             temperature_threshold=0.3,
