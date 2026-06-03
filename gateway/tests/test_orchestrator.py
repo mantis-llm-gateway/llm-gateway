@@ -1,4 +1,5 @@
 import json as _json
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -30,6 +31,7 @@ async def test_complete_success_returns_json_with_response(test_context):
             messages=make_messages(),
             stream=False,
             ctx=test_context,
+            start_time=datetime.now(UTC),
         )
     assert result is not None
     assert result.status_code == 200
@@ -58,6 +60,7 @@ async def test_cache_key_includes_full_conversation(test_context):
             ],
             stream=False,
             ctx=test_context,
+            start_time=datetime.now(UTC),
         )
 
     get_prompt = test_context.prompt_cache.get.await_args.kwargs["prompt"]
@@ -86,6 +89,7 @@ async def test_cache_prompt_includes_system_prompt(test_context):
             stream=False,
             ctx=test_context,
             system="You are a pirate.",
+            start_time=datetime.now(UTC),
         )
 
     get_prompt = test_context.prompt_cache.get.await_args.kwargs["prompt"]
@@ -113,6 +117,7 @@ async def test_high_temperature_skips_cache_get_and_set(test_context):
             stream=False,
             ctx=test_context,
             temperature=0.9,
+            start_time=datetime.now(UTC),
         )
 
     assert test_context.prompt_cache.get.await_count == 0
@@ -138,6 +143,7 @@ async def test_temperature_at_threshold_still_uses_cache(test_context):
             stream=False,
             ctx=test_context,
             temperature=0.3,
+            start_time=datetime.now(UTC),
         )
 
     assert test_context.prompt_cache.get.await_count == 1
@@ -171,6 +177,7 @@ async def test_long_conversation_skips_semantic_cache_only(test_context):
             ],
             stream=False,
             ctx=test_context,
+            start_time=datetime.now(UTC),
         )
 
     assert test_context.prompt_cache.get.await_args.kwargs["use_semantic"] is False
@@ -188,6 +195,7 @@ async def test_streaming_success_returns_streaming_response(test_context):
             messages=make_messages(),
             stream=True,
             ctx=test_context,
+            start_time=datetime.now(UTC),
         )
     assert isinstance(result, StreamingResponse)
 
@@ -203,6 +211,7 @@ async def test_abort_returns_status_and_message(test_context):
             messages=make_messages(),
             stream=False,
             ctx=test_context,
+            start_time=datetime.now(UTC),
         )
     assert result is not None
     assert result.status_code == 401
@@ -219,6 +228,7 @@ async def test_failover_exhausts_chain_and_returns_last_status(test_context):
             messages=make_messages(),
             stream=False,
             ctx=test_context,
+            start_time=datetime.now(UTC),
         )
     assert mock_attempt.await_count == 2
     assert result is not None
@@ -237,6 +247,7 @@ async def test_cooldown_skips_target(test_context, fake_redis):
             messages=make_messages(),
             stream=False,
             ctx=test_context,
+            start_time=datetime.now(UTC),
         )
     assert mock_attempt.await_count == 1
 
@@ -254,6 +265,7 @@ async def test_all_cooled_returns_none(test_context, fake_redis):
             messages=make_messages(),
             stream=False,
             ctx=test_context,
+            start_time=datetime.now(UTC),
         )
     assert mock_attempt.await_count == 0
     assert result is None
@@ -272,6 +284,7 @@ async def test_timeout_stream_abort(test_context):
             messages=make_messages(),
             stream=True,
             ctx=test_context,
+            start_time=datetime.now(UTC),
         )
 
         assert isinstance(result, StreamingResponse)
@@ -291,6 +304,7 @@ async def test_client_error_stream_abort(test_context):
             messages=make_messages(),
             stream=True,
             ctx=test_context,
+            start_time=datetime.now(UTC),
         )
 
         assert isinstance(result, StreamingResponse)
@@ -310,6 +324,7 @@ async def test_generic_exception_stream_abort(test_context):
             messages=make_messages(),
             stream=True,
             ctx=test_context,
+            start_time=datetime.now(UTC),
         )
 
         assert isinstance(result, StreamingResponse)

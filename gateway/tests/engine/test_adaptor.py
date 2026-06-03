@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from typing import TypedDict
 from unittest.mock import AsyncMock, MagicMock
 
@@ -317,6 +318,7 @@ async def test_timeout_stream_abort(test_context, provider_adaptor):
         messages=make_messages(),
         stream=True,
         ctx=test_context,
+        start_time=datetime.now(UTC),
     )
 
     assert isinstance(result, StreamingResponse)
