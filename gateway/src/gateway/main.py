@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from pydantic import TypeAdapter, ValidationError
 from pythonjsonlogger.json import JsonFormatter
 
+from gateway.auth import require_api_token, require_dashboard_basic_auth
 from gateway.context import AppContext, build_context, shutdown_context
 from gateway.models import ChatCompletionsRequest, Config, ConfigResponse
 from gateway.orchestrator import orchestrate
@@ -159,7 +160,7 @@ async def lifespan(app: FastAPI):
         await shutdown_context(app.state.context)
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 _metadata_adapter = TypeAdapter(dict[str, str])
 
 
@@ -189,13 +190,17 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/config")
+@app.get("/config", dependencies=[Depends(require_dashboard_basic_auth)])
 async def get_config(ctx: AppContext = Depends(get_context)) -> ConfigResponse:
     config = await _load_persisted_config(ctx.settings)
     return _config_response(ctx, config or ctx.config)
 
 
-@app.post("/v1/chat/completions", response_model=None)
+@app.post(
+    "/v1/chat/completions",
+    response_model=None,
+    dependencies=[Depends(require_api_token)],
+)
 async def chat_completions(
     body: ChatCompletionsRequest,
     metadata: dict[str, str] = Depends(parse_metadata_header),
@@ -212,7 +217,7 @@ async def chat_completions(
     )
 
 
-@app.post("/config")
+@app.post("/config", dependencies=[Depends(require_dashboard_basic_auth)])
 async def update_config(
     config: Config,
     ctx: AppContext = Depends(get_context),
@@ -241,7 +246,11 @@ async def update_config(
     return _config_response(ctx, config)
 
 
-@app.get("/{path:path}", include_in_schema=False)
+@app.get(
+    "/{path:path}",
+    include_in_schema=False,
+    dependencies=[Depends(require_dashboard_basic_auth)],
+)
 async def dashboard(path: str, ctx: AppContext = Depends(get_context)) -> Response:
     if ctx.settings.dashboard_s3_bucket:
         return await _s3_dashboard_response(path, ctx.settings)

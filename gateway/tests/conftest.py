@@ -1,3 +1,5 @@
+import hashlib
+
 import pytest
 from botocore.exceptions import ClientError
 from fastapi.testclient import TestClient
@@ -17,6 +19,12 @@ from gateway.models import (
 )
 from gateway.settings import Settings
 from tests.cache.in_memory_backends import InMemoryCacheBackend
+
+TEST_API_TOKEN_SECRET = "test-secret"
+TEST_DASHBOARD_PASSWORD_HASH = (
+    "$argon2id$v=19$m=65536,t=3,p=4$vZV7HIOCrCzcWqh5pT84rw"
+    "$+xVEOViE2U79CsmFPVI/6YFdXpjEqkn6H02KKNaMops"
+)
 
 
 class FakeAsyncRedis:
@@ -149,7 +157,15 @@ def fake_adaptor() -> FakeAdaptor:
 
 @pytest.fixture
 def test_settings() -> Settings:
-    return Settings(cache_endpoint="fake", cache_port=6379)
+    return Settings(
+        cache_endpoint="fake",
+        cache_port=6379,
+        api_token_hashes={
+            "test-client": hashlib.sha256(TEST_API_TOKEN_SECRET.encode()).hexdigest()
+        },
+        dashboard_username="test-admin",
+        dashboard_password_hash=TEST_DASHBOARD_PASSWORD_HASH,
+    )
 
 
 @pytest.fixture
