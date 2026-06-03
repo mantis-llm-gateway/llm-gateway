@@ -72,9 +72,6 @@ async def orchestrate(
     last_provider: str | None = None
     last_model: str | None = None
     for target in resolved_chain:
-        if await ctx.redis.exists(f"gateway:cooldown:{target.provider}:{target.model}"):
-            continue
-
         if not stream and not skip_cache:
             cached = await ctx.prompt_cache.get(
                 prompt=cache_prompt,
@@ -95,6 +92,9 @@ async def orchestrate(
                     },
                 )
                 return JSONResponse(content={"response": cached})
+
+        if await ctx.redis.exists(f"gateway:cooldown:{target.provider}:{target.model}"):
+            continue
 
         verdict = await execute_attempt(
             target,
