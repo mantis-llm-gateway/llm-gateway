@@ -57,3 +57,12 @@ output "bedrock_guardrail_id_parameter_name" {
   description = "SSM parameter containing the Bedrock guardrail ID"
   value       = aws_ssm_parameter.bedrock_guardrail_id.name
 }
+
+output "auth_parameter_names" {
+  description = "Manually managed SSM parameters containing application authentication configuration"
+  value = {
+    api_token_hashes        = local.api_token_hashes_parameter_name
+    dashboard_username      = local.dashboard_username_parameter_name
+    dashboard_password_hash = local.dashboard_password_hash_parameter_name
+  }
+}
