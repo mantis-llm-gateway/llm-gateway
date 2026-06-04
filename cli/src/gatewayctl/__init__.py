@@ -1,0 +1,5 @@
+"""Command-line tools for operating the Mantis gateway."""
+
+__all__ = ["__version__"]
+
+__version__ = "0.1.0"
