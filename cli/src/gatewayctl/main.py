@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import ipaddress
 import os
 import re
 import subprocess
@@ -320,10 +321,31 @@ def prompt_allowed_http_cidrs() -> list[str] | None:
         ).strip()
         if not value:
             return None
-        cidrs = [cidr.strip() for cidr in value.split(",") if cidr.strip()]
+        cidrs = parse_allowed_http_cidrs(value)
+        invalid_cidrs = [cidr for cidr in cidrs if not is_valid_ipv4_cidr(cidr)]
+        if invalid_cidrs:
+            typer.echo(
+                "allowed_http_cidrs contains invalid IPv4 CIDR values: " + ", ".join(invalid_cidrs)
+            )
+            continue
         if cidrs:
             return cidrs
         typer.echo("allowed_http_cidrs must include at least one CIDR value.")
+
+
+def parse_allowed_http_cidrs(value: str) -> list[str]:
+    value = value.strip()
+    if value.startswith("[") and value.endswith("]"):
+        value = value[1:-1]
+    return [cidr.strip().strip("\"'") for cidr in value.split(",") if cidr.strip()]
+
+
+def is_valid_ipv4_cidr(cidr: str) -> bool:
+    try:
+        ipaddress.IPv4Network(cidr)
+    except ValueError:
+        return False
+    return True
 
 
 def write_tfvars(path: Path, values: dict[str, Any]) -> None:
