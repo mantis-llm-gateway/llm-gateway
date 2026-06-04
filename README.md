@@ -357,7 +357,7 @@ Additional documentation can be found in:
 # Amazon Bedrock `model_id`
 To find the Amazon Bedrock model_id value, click on the model you want to use here: https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html
 
-## mantis CLI tool
+## Deployment CLI tool
 
 The CLI requires a `gw` profile in your AWS credentials file. If you do not
 already have one, create it before running the tool:
