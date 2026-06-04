@@ -1,4 +1,4 @@
-# LLM Gateway
+# Mantis gateway
 
 TODO: description of the repo
 
@@ -65,7 +65,7 @@ Please follow the `ticket-number/contributer-initials/title` convention to name 
 
 This repository follows the trunk branching methodology.
 
-## Running the Gateway
+## Running the Mantis gateway
 
 For local gateway development:
 
@@ -356,3 +356,38 @@ Additional documentation can be found in:
 
 # Amazon Bedrock `model_id`
 To find the Amazon Bedrock model_id value, click on the model you want to use here: https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html
+
+## mantis CLI tool
+
+The CLI requires a `gw` profile in your AWS credentials file. If you do not
+already have one, create it before running the tool:
+
+```sh
+aws configure --profile gw
+```
+
+After cloning the repo, install the CLI from the Mantis gateway root:
+
+```sh
+uv tool install ./cli
+```
+
+Then run:
+
+```sh
+mantis deploy
+```
+
+Run `mantis deploy` from the root of the Mantis gateway repo. The tool checks for a
+`gw` profile in `~/.aws/credentials`, bootstraps the Terraform state bucket, writes
+`infra/terraform.tfvars`, applies Terraform, deploys the dashboard and gateway image,
+and prints Terraform outputs.
+
+The `mantis` tool writes `aws_profile = "gw"` and `aws_region = "us-east-1"` into
+`infra/terraform.tfvars`; these values are fixed for CLI deployments. If you need
+HTTPS and Cloudflare DNS, follow the
+instructions under the "Configure HTTPS and Cloudflare DNS" section before applying
+those settings.
+
+To destroy all Terraform-managed infrastructure for your environment, run
+`terraform -chdir=infra destroy` from the root of the Mantis gateway.
