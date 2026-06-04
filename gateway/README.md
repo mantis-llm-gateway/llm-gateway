@@ -52,6 +52,19 @@ For local development, copy `.env.example` to `.env` and use it for gateway sett
 Keep AWS credentials out of `.env`; configure them through the standard AWS SDK credential chain instead,
 for example with `aws configure --profile gw` and `export AWS_PROFILE=gw`.
 
+Start a Redis-compatible cache before running the gateway. The default `.env.example`
+points the gateway at `localhost:6379`. The gateway uses the cache for provider/model
+cooldowns, exact prompt caching, and semantic prompt caching. If semantic caching is
+enabled in `src/gateway/config.json`, use a cache image with search/vector support,
+for example Redis Stack:
+
+```sh
+docker run --rm --name mantis-gateway-cache -p 6379:6379 redis/redis-stack-server:latest
+```
+
+In production, Terraform provisions an ElastiCache Valkey replication group and injects
+`CACHE_ENDPOINT`, `CACHE_PORT`, and `CACHE_AUTH_TOKEN` from Parameter Store.
+
 ## Running the Service
 
 Start the development server:
@@ -117,7 +130,7 @@ before running all hooks.
 
 ### Routing and cooldown
 
-When an LLM model returns a 429 "Too Many Requests" error, the gateway will add a key that
-includes both the provider and model to a Redis cache with a TTL of at least 60 seconds.
-During the duration of the TTL, the gateway will not send any requests to that provider+model.
-Hence, the duration of the TTL is a cooldown period.
+When an LLM model returns a 429 "Too Many Requests" error, the gateway adds a key that
+includes both the provider and model to the Redis-compatible cache with a TTL of at least
+60 seconds. During the TTL, the gateway will not send requests to that provider+model;
+the TTL is the cooldown period.

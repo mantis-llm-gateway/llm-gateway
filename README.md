@@ -71,8 +71,18 @@ For local gateway development:
 
 1. Copy `gateway/.env.example` to `gateway/.env`.
 2. Use `gateway/.env` for gateway settings only, such as `CACHE_*`, `AWS_REGION`, and `LOG_LEVEL`.
-3. Configure AWS credentials through the standard AWS SDK credential chain, for example with the `gw` profile documented below.
-4. Export `AWS_PROFILE=gw` before starting the service if you want to use that profile explicitly.
+3. Start a local Redis-compatible cache on `localhost:6379`. The gateway uses it for
+   provider/model cooldowns, exact prompt caching, and semantic prompt caching.
+   If semantic caching is enabled in `gateway/src/gateway/config.json`, use a cache
+   image with search/vector support, for example Redis Stack:
+
+   ```sh
+   docker run --rm --name mantis-gateway-cache -p 6379:6379 redis/redis-stack-server:latest
+   ```
+
+4. Configure AWS credentials through the standard AWS SDK credential chain, for example
+   with the `gw` profile documented below.
+5. Export `AWS_PROFILE=gw` before starting the service if you want to use that profile explicitly.
 
 ```sh
 cd gateway
@@ -332,7 +342,9 @@ terraform -chdir=infra output
 
 ### Parameter Store
 
-Terraform populates `cache/auth-token`, `cache/endpoint`, `cache/port`,
+Terraform provisions an ElastiCache Valkey replication group for the gateway's
+Redis-compatible cache. The gateway reads the connection settings from Parameter
+Store at startup. Terraform populates `cache/auth-token`, `cache/endpoint`, `cache/port`,
 `bedrock/guardrail-id`, and `routing/config`. The routing config is seeded from
 `gateway/src/gateway/config.json`; later dashboard edits are intentionally ignored by
 Terraform so a future `terraform apply` does not overwrite saved UI changes.
