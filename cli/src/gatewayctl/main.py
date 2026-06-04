@@ -19,6 +19,7 @@ AWS_PROFILE = "gw"
 AWS_REGION = "us-east-1"
 ROOT_HINT = "Make sure you are running this CLI tool from the root of the Mantis gateway repo."
 VALID_NAME_RE = re.compile(r"^[a-z][a-z0-9-]{1,20}$")
+VALID_TOKEN_ID_RE = re.compile(r"^[a-zA-Z0-9-]{1,64}$")
 
 
 @app.command()
@@ -31,6 +32,7 @@ def deploy() -> None:
     infra_dir = root_dir / "infra"
     tfvars_path = infra_dir / "terraform.tfvars"
     bootstrap_script = root_dir / "scripts" / "bootstrap_state_bucket.sh"
+    setup_auth_script = root_dir / "scripts" / "setup_auth.sh"
     deploy_script = root_dir / "scripts" / "deploy.sh"
 
     namespace = prompt_required_name("AWS namespace")
@@ -45,6 +47,25 @@ def deploy() -> None:
     cache_auth_token = generate_cache_auth_token()
     tfvars = collect_tfvars(owner, namespace, cache_auth_token)
     write_tfvars(tfvars_path, tfvars)
+    api_token_id = prompt_required_token_id("API token ID")
+    typer.echo(
+        "\nCreating gateway authentication parameters in SSM. Store the printed API token; "
+        "it will not be shown again."
+    )
+    run_script(
+        [
+            str(setup_auth_script),
+            namespace,
+            "--profile",
+            AWS_PROFILE,
+            "--region",
+            AWS_REGION,
+            "--token-id",
+            api_token_id,
+        ],
+        root_dir,
+        root_hint=True,
+    )
 
     terraform_apply = run_command(
         ["terraform", "-chdir=infra", "apply"],
@@ -138,6 +159,14 @@ def prompt_required_name(name: str) -> str:
         typer.echo(
             f"{name} must be 2-21 chars: lowercase letters, numbers, hyphens; start with a letter."
         )
+
+
+def prompt_required_token_id(name: str) -> str:
+    while True:
+        value = typer.prompt(f"Enter {name}").strip()
+        if VALID_TOKEN_ID_RE.fullmatch(value):
+            return value
+        typer.echo(f"{name} must be 1-64 chars: letters, numbers, or hyphens.")
 
 
 def generate_cache_auth_token() -> str:

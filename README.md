@@ -432,8 +432,10 @@ mantis deploy
 
 Run `mantis deploy` from the root of the Mantis gateway repo. The tool checks for a
 `gw` profile in `~/.aws/credentials`, bootstraps the Terraform state bucket, writes
-`infra/terraform.tfvars`, applies Terraform, deploys the dashboard and gateway image,
-and prints Terraform outputs.
+`infra/terraform.tfvars`, creates or rotates the required authentication parameters,
+applies Terraform, deploys the dashboard and gateway image, and prints Terraform outputs.
+When prompted for an API token ID, enter a stable client name such as `local-client` or
+`backend-service`. Store the printed API token immediately; it will not be shown again.
 
 The `mantis` tool writes `aws_profile = "gw"` and `aws_region = "us-east-1"` into
 `infra/terraform.tfvars`; these values are fixed for CLI deployments. If you need
