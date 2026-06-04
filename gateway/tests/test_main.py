@@ -87,6 +87,21 @@ async def test_load_config_reads_parameter_store_with_async_client(
     assert config == test_config
 
 
+@pytest.mark.asyncio
+async def test_load_config_defaults_legacy_stream_idle_timeout(
+    test_config, test_settings, monkeypatch
+):
+    payload = test_config.model_dump(mode="json")
+    payload.pop("stream_idle_timeout")
+    fake_ssm = FakeSsmClient(json.dumps(payload))
+    test_settings.parameter_store_config_key = "/gw-test/routing/config"
+    monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(fake_ssm))
+
+    config = await _load_config(test_settings)
+
+    assert config.stream_idle_timeout == 5
+
+
 def test_health_returns_ok(client):
     response = client.get("/health")
     assert response.status_code == 200

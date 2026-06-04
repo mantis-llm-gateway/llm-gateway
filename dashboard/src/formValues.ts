@@ -11,6 +11,7 @@ export function toFormValues(config: Config): FormValues {
     target_retries: config.target_retries,
     fallbacks: config.fallbacks.map(value => ({ value })),
     initial_response_timeout: config.initial_response_timeout,
+    stream_idle_timeout: config.stream_idle_timeout,
     default_model: config.default_model,
     cooldown_ttl: config.cooldown_ttl,
     prompt_cache: config.prompt_cache,
@@ -29,6 +30,7 @@ export function toConfig(values: FormValues): Config {
     target_retries: Number(values.target_retries),
     fallbacks: values.fallbacks.map(fallback => fallback.value),
     initial_response_timeout: Number(values.initial_response_timeout),
+    stream_idle_timeout: Number(values.stream_idle_timeout),
     default_model: values.default_model,
     cooldown_ttl: Number(values.cooldown_ttl),
     prompt_cache: {
