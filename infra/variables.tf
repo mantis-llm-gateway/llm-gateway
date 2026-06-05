@@ -107,9 +107,15 @@ variable "allowed_http_cidrs" {
 }
 
 locals {
-  ssm_parameter_prefix          = "/gw-${var.namespace}"
-  routing_config_parameter_name = "${local.ssm_parameter_prefix}/routing/config"
-  dashboard_bucket_name         = "gw-${var.namespace}-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}-dashboard"
-  gateway_container_image       = "${aws_ecr_repository.gateway.repository_url}:${var.container_image_tag}"
-  gateway_url                   = var.enable_https ? (var.gateway_domain_name != null ? "https://${var.gateway_domain_name}" : null) : "http://${aws_lb.gw-alb.dns_name}"
+  ssm_parameter_prefix                   = "/gw-${var.namespace}"
+  routing_config_parameter_name          = "${local.ssm_parameter_prefix}/routing/config"
+  api_token_hashes_parameter_name        = "${local.ssm_parameter_prefix}/auth/api-token-hashes"
+  dashboard_username_parameter_name      = "${local.ssm_parameter_prefix}/auth/dashboard-username"
+  dashboard_password_hash_parameter_name = "${local.ssm_parameter_prefix}/auth/dashboard-password-hash"
+  api_token_hashes_parameter_arn         = "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter${local.api_token_hashes_parameter_name}"
+  dashboard_username_parameter_arn       = "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter${local.dashboard_username_parameter_name}"
+  dashboard_password_hash_parameter_arn  = "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter${local.dashboard_password_hash_parameter_name}"
+  dashboard_bucket_name                  = "gw-${var.namespace}-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}-dashboard"
+  gateway_container_image                = "${aws_ecr_repository.gateway.repository_url}:${var.container_image_tag}"
+  gateway_url                            = var.enable_https ? (var.gateway_domain_name != null ? "https://${var.gateway_domain_name}" : null) : "http://${aws_lb.gw-alb.dns_name}"
 }

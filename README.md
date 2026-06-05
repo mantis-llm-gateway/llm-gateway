@@ -80,6 +80,45 @@ export AWS_PROFILE=gw
 uv run uvicorn gateway.main:app --reload --app-dir src
 ```
 
+## Authentication
+
+`GET /health` remains public so the ALB can check task health. Other routes require
+authentication:
+
+| Route | Authentication |
+| --- | --- |
+| `POST /v1/chat/completions` | `Authorization: Bearer gw_<token-id>_<random-secret>` |
+| Dashboard assets, `GET /config`, and `POST /config` | Browser HTTP Basic Auth |
+
+Only API token hashes and the Argon2 dashboard password hash are stored by the gateway.
+For local development, populate the authentication fields documented in
+`gateway/.env.example`.
+
+For a deployed environment, provision or rotate credentials in Parameter Store:
+
+```sh
+./scripts/setup_auth.sh <namespace> --token-id <client-name>
+```
+
+The script prompts for the dashboard password and prints the newly generated API token
+once. Existing API token hashes are preserved by default so callers can migrate during a
+staged rotation. Use `--skip-dashboard-password` when adding an API token without changing
+dashboard credentials, or `--replace-api-tokens` to revoke all previous API tokens.
+
+Create these parameters before the first `terraform apply` that includes authentication
+wiring. Do not send API tokens or dashboard credentials over plaintext HTTP; enable HTTPS
+before allowing client access outside local development.
+
+After changing authentication parameters, force a deployment so ECS starts tasks with the
+new values:
+
+```sh
+aws ecs update-service --profile gw \
+  --cluster gw-<namespace>-cluster \
+  --service gw-<namespace>-gateway-service \
+  --force-new-deployment
+```
+
 ## Routing Config Dashboard
 
 The dashboard edits the routing config stored in AWS Systems Manager Parameter Store.
@@ -256,8 +295,8 @@ Cloudflare flattens a CNAME at the apex domain automatically. Keep the routing r
 set to **DNS only** while using an IP allow-list, because proxied requests would reach
 the ALB from Cloudflare IP addresses rather than the original client IP.
 
-Until application authentication and rate limiting are implemented, restrict access
-to your current public IP:
+Even with application authentication enabled, restrict access to your current public IP
+until rate limiting is implemented:
 
 ```sh
 curl https://checkip.amazonaws.com
@@ -300,6 +339,14 @@ this migration step.
 
 ### Apply
 
+Create the authentication parameters before applying. Existing ECS services may begin
+rolling out the new task definition during `terraform apply`, and its tasks require these
+parameters at startup:
+
+```sh
+./scripts/setup_auth.sh <namespace> --token-id <client-name>
+```
+
 ```sh
 terraform -chdir=infra plan
 terraform -chdir=infra apply
@@ -310,7 +357,7 @@ before an image exists.
 
 ### Deploy
 
-After applying the infrastructure, run:
+After applying the infrastructure, deploy:
 
 ```sh
 ./scripts/deploy.sh
@@ -336,6 +383,11 @@ Terraform populates `cache/auth-token`, `cache/endpoint`, `cache/port`,
 `bedrock/guardrail-id`, and `routing/config`. The routing config is seeded from
 `gateway/src/gateway/config.json`; later dashboard edits are intentionally ignored by
 Terraform so a future `terraform apply` does not overwrite saved UI changes.
+
+The `setup_auth.sh` script separately creates `auth/api-token-hashes`,
+`auth/dashboard-username`, and `auth/dashboard-password-hash`. These parameters are
+referenced by ECS but intentionally remain outside Terraform state. They are not removed
+by `terraform destroy`.
 
 ### Tearing down
 
@@ -380,8 +432,10 @@ mantis deploy
 
 Run `mantis deploy` from the root of the Mantis gateway repo. The tool checks for a
 `gw` profile in `~/.aws/credentials`, bootstraps the Terraform state bucket, writes
-`infra/terraform.tfvars`, applies Terraform, deploys the dashboard and gateway image,
-and prints Terraform outputs.
+`infra/terraform.tfvars`, creates or rotates the required authentication parameters,
+applies Terraform, deploys the dashboard and gateway image, and prints Terraform outputs.
+When prompted for an API token ID, enter a stable client name such as `local-client` or
+`backend-service`. Store the printed API token immediately; it will not be shown again.
 
 The `mantis` tool writes `aws_profile = "gw"` and `aws_region = "us-east-1"` into
 `infra/terraform.tfvars`; these values are fixed for CLI deployments. If you need

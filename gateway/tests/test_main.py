@@ -27,6 +27,10 @@ async def _empty_receive() -> dict:
     return {"type": "http.request", "body": b"", "more_body": False}
 
 
+API_AUTH_HEADERS = {"Authorization": "Bearer gw_test-client_test-secret"}
+DASHBOARD_AUTH = ("test-admin", "test-password")
+
+
 class FakeSsmClient:
     def __init__(self, value: str) -> None:
         self.value = value
@@ -203,14 +207,82 @@ async def test_load_config_reads_parameter_store_with_async_client(
     assert config == test_config
 
 
+@pytest.mark.asyncio
+async def test_load_config_defaults_legacy_stream_idle_timeout(
+    test_config, test_settings, monkeypatch
+):
+    payload = test_config.model_dump(mode="json")
+    payload.pop("stream_idle_timeout")
+    fake_ssm = FakeSsmClient(json.dumps(payload))
+    test_settings.parameter_store_config_key = "/gw-test/routing/config"
+    monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(fake_ssm))
+
+    config = await _load_config(test_settings)
+
+    assert config.stream_idle_timeout == 5
+
+
 def test_health_returns_ok(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
 
+def test_chat_completions_requires_api_token(client):
+    response = client.post(
+        "/v1/chat/completions",
+        json={"messages": [{"role": "user", "content": "hello"}]},
+    )
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+
+
+def test_chat_completions_rejects_invalid_api_token(client):
+    response = client.post(
+        "/v1/chat/completions",
+        headers={"Authorization": "Bearer gw_test-client_wrong-secret"},
+        json={"messages": [{"role": "user", "content": "hello"}]},
+    )
+
+    assert response.status_code == 401
+
+
+def test_chat_completions_returns_503_when_api_auth_is_not_configured(client, test_context):
+    test_context.settings.api_token_hashes = {}
+
+    response = client.post(
+        "/v1/chat/completions",
+        headers=API_AUTH_HEADERS,
+        json={"messages": [{"role": "user", "content": "hello"}]},
+    )
+
+    assert response.status_code == 503
+
+
+def test_dashboard_requires_basic_auth(client):
+    response = client.get("/")
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == 'Basic realm="dashboard"'
+
+
+def test_config_rejects_invalid_dashboard_password(client):
+    response = client.get("/config", auth=("test-admin", "wrong-password"))
+
+    assert response.status_code == 401
+
+
+def test_dashboard_returns_503_when_basic_auth_is_not_configured(client, test_context):
+    test_context.settings.dashboard_password_hash = None
+
+    response = client.get("/", auth=DASHBOARD_AUTH)
+
+    assert response.status_code == 503
+
+
 def test_get_config_returns_reload_metadata(client, test_config):
-    response = client.get("/config")
+    response = client.get("/config", auth=DASHBOARD_AUTH)
 
     assert response.status_code == 200
     assert response.json() == {
@@ -227,7 +299,7 @@ def test_get_config_flags_when_parameter_store_differs(
     test_context.settings.parameter_store_config_key = "/gw-test/routing/config"
     monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(fake_ssm))
 
-    response = client.get("/config")
+    response = client.get("/config", auth=DASHBOARD_AUTH)
 
     assert response.status_code == 200
     assert response.json() == {
@@ -239,7 +311,11 @@ def test_get_config_flags_when_parameter_store_differs(
 def test_update_config_requires_parameter_store(client, test_config, test_context):
     updated_config = test_config.model_copy(update={"default_model": "fallback"})
 
-    response = client.post("/config", json=json.loads(updated_config.model_dump_json()))
+    response = client.post(
+        "/config",
+        json=json.loads(updated_config.model_dump_json()),
+        auth=DASHBOARD_AUTH,
+    )
 
     assert response.status_code == 409
     assert test_context.config.default_model == "model-a"
@@ -253,7 +329,11 @@ def test_update_config_writes_parameter_store_without_replacing_active_config(
     test_context.settings.parameter_store_config_key = "/gw-test/routing/config"
     monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(fake_ssm))
 
-    response = client.post("/config", json=json.loads(updated_config.model_dump_json()))
+    response = client.post(
+        "/config",
+        json=json.loads(updated_config.model_dump_json()),
+        auth=DASHBOARD_AUTH,
+    )
 
     assert response.status_code == 200
     assert response.json() == {
@@ -276,7 +356,7 @@ def test_dashboard_serves_asset_from_s3(client, test_context, monkeypatch):
     test_context.settings.dashboard_s3_bucket = "gw-test-dashboard"
     monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(s3=fake_s3))
 
-    response = client.get("/assets/app.js")
+    response = client.get("/assets/app.js", auth=DASHBOARD_AUTH)
 
     assert response.status_code == 200
     assert response.text == "console.log('hello')"
@@ -297,7 +377,7 @@ def test_dashboard_normalizes_s3_last_modified_header(client, test_context, monk
     test_context.settings.dashboard_s3_bucket = "gw-test-dashboard"
     monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(s3=fake_s3))
 
-    response = client.get("/")
+    response = client.get("/", auth=DASHBOARD_AUTH)
 
     assert response.status_code == 200
     assert response.headers["last-modified"] == "Sun, 31 May 2026 09:00:00 GMT"
@@ -316,7 +396,7 @@ def test_dashboard_omits_naive_s3_last_modified_header(client, test_context, mon
     test_context.settings.dashboard_s3_bucket = "gw-test-dashboard"
     monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(s3=fake_s3))
 
-    response = client.get("/")
+    response = client.get("/", auth=DASHBOARD_AUTH)
 
     assert response.status_code == 200
     assert "last-modified" not in response.headers
@@ -327,7 +407,7 @@ def test_dashboard_falls_back_to_s3_index_for_spa_routes(client, test_context, m
     test_context.settings.dashboard_s3_bucket = "gw-test-dashboard"
     monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(s3=fake_s3))
 
-    response = client.get("/routing-rules")
+    response = client.get("/routing-rules", auth=DASHBOARD_AUTH)
 
     assert response.status_code == 200
     assert response.text == "<div id='root'></div>"
@@ -342,7 +422,7 @@ def test_dashboard_returns_404_for_missing_s3_asset(client, test_context, monkey
     test_context.settings.dashboard_s3_bucket = "gw-test-dashboard"
     monkeypatch.setattr("gateway.main.aioboto3.Session", lambda: FakeAioboto3Session(s3=fake_s3))
 
-    response = client.get("/assets/missing.js")
+    response = client.get("/assets/missing.js", auth=DASHBOARD_AUTH)
 
     assert response.status_code == 404
 
@@ -350,7 +430,7 @@ def test_dashboard_returns_404_for_missing_s3_asset(client, test_context, monkey
 def test_handler_returns_200_with_response_text(client):
     response = client.post(
         "/v1/chat/completions",
-        headers={"metadata": json.dumps({"task-type": "code_generation"})},
+        headers={**API_AUTH_HEADERS, "metadata": json.dumps({"task-type": "code_generation"})},
         json={
             "messages": [{"role": "user", "content": "hello"}],
             "stream": False,
@@ -370,7 +450,7 @@ def test_handler_times_out_through_fastapi_stack(client, test_context, monkeypat
 
     response = client.post(
         "/v1/chat/completions",
-        headers={"metadata": json.dumps({"task-type": "code_generation"})},
+        headers={**API_AUTH_HEADERS, "metadata": json.dumps({"task-type": "code_generation"})},
         json={
             "messages": [{"role": "user", "content": "hello"}],
             "stream": False,
@@ -384,7 +464,7 @@ def test_handler_times_out_through_fastapi_stack(client, test_context, monkeypat
 def test_handler_passes_full_chat_history_to_provider(client, fake_adaptor):
     response = client.post(
         "/v1/chat/completions",
-        headers={"metadata": json.dumps({"task-type": "code_generation"})},
+        headers={**API_AUTH_HEADERS, "metadata": json.dumps({"task-type": "code_generation"})},
         json={
             "messages": [
                 {"role": "user", "content": "hello"},
@@ -407,7 +487,7 @@ def test_handler_passes_full_chat_history_to_provider(client, fake_adaptor):
 def test_handler_threads_inference_params_to_provider(client, fake_adaptor):
     response = client.post(
         "/v1/chat/completions",
-        headers={"metadata": json.dumps({"task-type": "code_generation"})},
+        headers={**API_AUTH_HEADERS, "metadata": json.dumps({"task-type": "code_generation"})},
         json={
             "messages": [{"role": "user", "content": "hello"}],
             "stream": False,
@@ -428,7 +508,7 @@ def test_handler_threads_inference_params_to_provider(client, fake_adaptor):
 def test_handler_defaults_inference_params_to_none(client, fake_adaptor):
     response = client.post(
         "/v1/chat/completions",
-        headers={"metadata": json.dumps({"task-type": "code_generation"})},
+        headers={**API_AUTH_HEADERS, "metadata": json.dumps({"task-type": "code_generation"})},
         json={
             "messages": [{"role": "user", "content": "hello"}],
             "stream": False,
@@ -447,6 +527,7 @@ def test_handler_returns_422_when_messages_is_empty(client):
     response = client.post(
         "/v1/chat/completions",
         json={"messages": [], "stream": False},
+        headers=API_AUTH_HEADERS,
     )
     assert response.status_code == 422
 
@@ -454,6 +535,7 @@ def test_handler_returns_422_when_messages_is_empty(client):
 def test_handler_returns_422_when_message_content_is_blank(client):
     response = client.post(
         "/v1/chat/completions",
+        headers=API_AUTH_HEADERS,
         json={
             "messages": [{"role": "user", "content": "   "}],
             "stream": False,
@@ -465,6 +547,7 @@ def test_handler_returns_422_when_message_content_is_blank(client):
 def test_handler_returns_422_for_unsupported_message_role(client):
     response = client.post(
         "/v1/chat/completions",
+        headers=API_AUTH_HEADERS,
         json={
             "messages": [{"role": "system", "content": "answer briefly"}],
             "stream": False,
@@ -476,7 +559,7 @@ def test_handler_returns_422_for_unsupported_message_role(client):
 def test_handler_returns_422_for_invalid_metadata_header(client):
     response = client.post(
         "/v1/chat/completions",
-        headers={"metadata": "not-json"},
+        headers={**API_AUTH_HEADERS, "metadata": "not-json"},
         json={
             "messages": [{"role": "user", "content": "hello"}],
             "stream": False,
@@ -488,7 +571,7 @@ def test_handler_returns_422_for_invalid_metadata_header(client):
 def test_handler_accepts_temperature_system_and_max_tokens(client):
     response = client.post(
         "/v1/chat/completions",
-        headers={"metadata": json.dumps({"task-type": "code_generation"})},
+        headers={**API_AUTH_HEADERS, "metadata": json.dumps({"task-type": "code_generation"})},
         json={
             "messages": [{"role": "user", "content": "hello"}],
             "stream": False,
@@ -504,6 +587,7 @@ def test_handler_accepts_temperature_system_and_max_tokens(client):
 def test_handler_returns_422_for_out_of_range_temperature(client, temperature):
     response = client.post(
         "/v1/chat/completions",
+        headers=API_AUTH_HEADERS,
         json={
             "messages": [{"role": "user", "content": "hello"}],
             "temperature": temperature,
@@ -516,6 +600,7 @@ def test_handler_returns_422_for_out_of_range_temperature(client, temperature):
 def test_handler_returns_422_for_non_positive_max_tokens(client, max_tokens):
     response = client.post(
         "/v1/chat/completions",
+        headers=API_AUTH_HEADERS,
         json={
             "messages": [{"role": "user", "content": "hello"}],
             "max_tokens": max_tokens,
@@ -528,6 +613,7 @@ def test_handler_returns_422_for_non_positive_max_tokens(client, max_tokens):
 def test_handler_returns_422_for_blank_system(client, system):
     response = client.post(
         "/v1/chat/completions",
+        headers=API_AUTH_HEADERS,
         json={
             "messages": [{"role": "user", "content": "hello"}],
             "system": system,

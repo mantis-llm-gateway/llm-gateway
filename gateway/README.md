@@ -52,6 +52,10 @@ For local development, copy `.env.example` to `.env` and use it for gateway sett
 Keep AWS credentials out of `.env`; configure them through the standard AWS SDK credential chain instead,
 for example with `aws configure --profile gw` and `export AWS_PROFILE=gw`.
 
+Populate `API_TOKEN_HASHES`, `DASHBOARD_USERNAME`, and `DASHBOARD_PASSWORD_HASH` in `.env`.
+`GET /health` is public, `POST /v1/chat/completions` requires a bearer token shaped like
+`gw_<token-id>_<random-secret>`, and the dashboard and config routes require HTTP Basic Auth.
+
 ## Running the Service
 
 Start the development server:
