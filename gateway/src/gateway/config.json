@@ -1,35 +1,35 @@
 {
   "aliases": {
     "Claude Sonnet 4-5 Bedrock": {
-      "provider": "bedrock",
+      "provider": "anthropic",
       "model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     },
     "Claude Haiku 4-5 Bedrock": {
-      "provider": "bedrock",
+      "provider": "anthropic",
       "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0"
     },
     "Nova Premier Bedrock": {
-      "provider": "bedrock",
+      "provider": "amazon",
       "model": "us.amazon.nova-premier-v1:0"
     },
     "Nova Pro Bedrock": {
-      "provider": "bedrock",
+      "provider": "amazon",
       "model": "us.amazon.nova-pro-v1:0"
     },
     "Nova Lite Bedrock": {
-      "provider": "bedrock",
+      "provider": "amazon",
       "model": "us.amazon.nova-lite-v1:0"
     },
     "Nova Micro Bedrock": {
-      "provider": "bedrock",
+      "provider": "amazon",
       "model": "us.amazon.nova-micro-v1:0"
     },
     "Claude Haiku 4-5 Bedrock Fallback": {
-      "provider": "bedrock",
+      "provider": "anthropic",
       "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0"
     }
   },
-  "default_model": "Claude Haiku 4-5 Bedrock",
+  "default_model": "Nova Micro Bedrock",
   "routing_rules": [
     {
       "id": "1",
