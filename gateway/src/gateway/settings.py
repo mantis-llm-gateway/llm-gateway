@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     dashboard_s3_bucket: str | None = Field(default=None)
     dashboard_s3_prefix: str = Field(default="")
 
+    # Authentication
+    api_token_hashes: dict[str, str] = Field(default_factory=dict, repr=False)
+    dashboard_username: str = Field(default="admin")
+    dashboard_password_hash: str | None = Field(default=None, repr=False)
+
     # Bedrock
     bedrock_guardrail_id: str | None = Field(default=None)
     bedrock_guardrail_version: str | None = Field(default=None)

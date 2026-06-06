@@ -65,6 +65,10 @@ docker run --rm --name mantis-gateway-cache -p 6379:6379 redis/redis-stack-serve
 In production, Terraform provisions an ElastiCache Valkey replication group and injects
 `CACHE_ENDPOINT`, `CACHE_PORT`, and `CACHE_AUTH_TOKEN` from Parameter Store.
 
+Populate `API_TOKEN_HASHES`, `DASHBOARD_USERNAME`, and `DASHBOARD_PASSWORD_HASH` in `.env`.
+`GET /health` is public, `POST /v1/chat/completions` requires a bearer token shaped like
+`gw_<token-id>_<random-secret>`, and the dashboard and config routes require HTTP Basic Auth.
+
 ## Running the Service
 
 Start the development server:

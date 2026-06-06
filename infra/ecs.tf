@@ -52,6 +52,9 @@ resource "aws_ecs_task_definition" "gw" {
       { name = "CACHE_PORT", valueFrom = aws_ssm_parameter.cache_port.arn },
       { name = "CACHE_AUTH_TOKEN", valueFrom = aws_ssm_parameter.cache_auth_token.arn },
       { name = "BEDROCK_GUARDRAIL_ID", valueFrom = aws_ssm_parameter.bedrock_guardrail_id.arn },
+      { name = "API_TOKEN_HASHES", valueFrom = local.api_token_hashes_parameter_arn },
+      { name = "DASHBOARD_USERNAME", valueFrom = local.dashboard_username_parameter_arn },
+      { name = "DASHBOARD_PASSWORD_HASH", valueFrom = local.dashboard_password_hash_parameter_arn },
     ]
 
     logConfiguration = {
