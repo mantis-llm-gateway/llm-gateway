@@ -41,6 +41,11 @@ pyrightconfig.json
 *.tfstate.*
 .terraform/
 terraform.tfvars
+*.tfplan
+tfplan
+plan.out
+crash.log
+crash.*.log
 
 # Logs
 *.log
