@@ -67,10 +67,7 @@ export function ConfigForm({
     <div className="container">
       <div className="form-banner">
         <h1>Gateway Routing Configuration</h1>
-        <p>
-          Define aliases, routing rules, fallbacks, and cache settings for your
-          LLM gateway.
-        </p>
+        <p>Define aliases, routing rules, fallbacks, and cache settings.</p>
       </div>
 
       <div className="form-body">

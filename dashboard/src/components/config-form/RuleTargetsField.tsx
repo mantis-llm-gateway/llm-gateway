@@ -15,24 +15,33 @@ export function RuleTargetsField({ ruleIndex, control, register }: RuleTargetsFi
   })
 
   return (
-    <div className="targets-section">
-      <h4>Targets</h4>
+    <div className="subgroup">
+      <div className="subgroup-head">Targets</div>
+      <div className="target-head">
+        <span>Alias</span>
+        <span>Weight</span>
+        <span></span>
+      </div>
       {fields.map((field, index) => (
-        <div key={field.id} className="field-row">
+        <div key={field.id} className="target-row">
           <input
             {...register(`routing_rules.${ruleIndex}.targets.${index}.alias`)}
-            placeholder="Alias name"
+            placeholder="alias name"
           />
           <input
+            type="number"
             {...register(`routing_rules.${ruleIndex}.targets.${index}.weight`, {
               valueAsNumber: true,
             })}
-            type="number"
-            placeholder="Weight"
-            style={{ maxWidth: 80 }}
+            placeholder="1"
           />
-          <button type="button" className="btn-remove" onClick={() => remove(index)}>
-            Remove
+          <button
+            type="button"
+            className="btn-remove"
+            aria-label="Remove target"
+            onClick={() => remove(index)}
+          >
+            ✕
           </button>
         </div>
       ))}

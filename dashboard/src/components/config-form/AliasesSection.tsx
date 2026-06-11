@@ -16,20 +16,33 @@ export function AliasesSection({ control, register }: AliasesSectionProps) {
       <SectionHeading title="Aliases" />
       {fields.map((field, index) => (
         <div key={field.id} className="card">
-          <div className="field-row">
-            <label>Name</label>
-            <input {...register(`aliases.${index}.name`)} placeholder="e.g. Claude Sonnet" />
-            <button type="button" className="btn-remove" onClick={() => remove(index)}>
-              Remove
+          <div className="card-header">
+            <span className="card-index">Alias {String(index + 1).padStart(2, '0')}</span>
+            <button
+              type="button"
+              className="btn-remove"
+              aria-label="Remove alias"
+              onClick={() => remove(index)}
+            >
+              ✕
             </button>
           </div>
           <div className="field-row">
+            <label>Name</label>
+            <input {...register(`aliases.${index}.name`)} placeholder="e.g. Claude Sonnet" />
+          </div>
+          <div className="field-row">
             <label>Provider</label>
-            <input {...register(`aliases.${index}.provider`)} placeholder="e.g. bedrock" />
+            <input
+              className="mono"
+              {...register(`aliases.${index}.provider`)}
+              placeholder="e.g. bedrock"
+            />
           </div>
           <div className="field-row">
             <label>Model ID</label>
             <input
+              className="mono"
               {...register(`aliases.${index}.model`)}
               placeholder="e.g. us.anthropic.claude-sonnet-4-5-..."
             />

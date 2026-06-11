@@ -17,41 +17,51 @@ export function GeneralSettingsSection({ control, register }: GeneralSettingsSec
     <>
       <SectionHeading title="General Settings" />
 
-      <div className="field-row">
-        <label>Default Model</label>
-        <select {...register('default_model')}>
-          {defaultModelIsMissing && (
-            <option value={defaultModel}>{defaultModel} (missing alias)</option>
-          )}
-          {aliases.map(alias => (
-            <option key={alias.name} value={alias.name}>
-              {alias.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      <div className="card">
+        <div className="field-row">
+          <label>Default Model</label>
+          <select {...register('default_model')}>
+            {defaultModelIsMissing && (
+              <option value={defaultModel}>{defaultModel} (missing alias)</option>
+            )}
+            {aliases.map(alias => (
+              <option key={alias.name} value={alias.name}>
+                {alias.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      <div className="field-row">
-        <label>Target Retries</label>
-        <input type="number" {...register('target_retries', { valueAsNumber: true })} />
-      </div>
+        <div className="num-grid">
+          <div className="field-row">
+            <label>Target Retries</label>
+            <input type="number" {...register('target_retries', { valueAsNumber: true })} />
+          </div>
 
-      <div className="field-row">
-        <label>Initial Response Timeout (s)</label>
-        <input
-          type="number"
-          {...register('initial_response_timeout', { valueAsNumber: true })}
-        />
-      </div>
+          <div className="field-row">
+            <label>Initial Response Timeout</label>
+            <div className="num-field" data-unit="s">
+              <input
+                type="number"
+                {...register('initial_response_timeout', { valueAsNumber: true })}
+              />
+            </div>
+          </div>
 
-      <div className="field-row">
-        <label>Stream Idle Timeout (s)</label>
-        <input type="number" {...register('stream_idle_timeout', { valueAsNumber: true })} />
-      </div>
+          <div className="field-row">
+            <label>Stream Idle Timeout</label>
+            <div className="num-field" data-unit="s">
+              <input type="number" {...register('stream_idle_timeout', { valueAsNumber: true })} />
+            </div>
+          </div>
 
-      <div className="field-row">
-        <label>Cooldown TTL (s)</label>
-        <input type="number" {...register('cooldown_ttl', { valueAsNumber: true })} />
+          <div className="field-row">
+            <label>Cooldown TTL</label>
+            <div className="num-field" data-unit="s">
+              <input type="number" {...register('cooldown_ttl', { valueAsNumber: true })} />
+            </div>
+          </div>
+        </div>
       </div>
     </>
   )
