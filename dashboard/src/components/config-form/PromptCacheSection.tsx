@@ -1,16 +1,24 @@
-import { useWatch } from 'react-hook-form'
-import type { Control, UseFormRegister, UseFormSetValue } from 'react-hook-form'
-import type { FormValues } from '../../types'
-import { SectionHeading } from '../SectionHeading'
+import { useWatch } from "react-hook-form";
+import type {
+  Control,
+  UseFormRegister,
+  UseFormSetValue,
+} from "react-hook-form";
+import type { FormValues } from "../../types";
+import { SectionHeading } from "../SectionHeading";
 
 interface PromptCacheSectionProps {
-  control: Control<FormValues>
-  register: UseFormRegister<FormValues>
-  setValue: UseFormSetValue<FormValues>
+  control: Control<FormValues>;
+  register: UseFormRegister<FormValues>;
+  setValue: UseFormSetValue<FormValues>;
 }
 
-export function PromptCacheSection({ control, register, setValue }: PromptCacheSectionProps) {
-  const semantic = useWatch({ control, name: 'prompt_cache.semantic' })
+export function PromptCacheSection({
+  control,
+  register,
+  setValue,
+}: PromptCacheSectionProps) {
+  const semantic = useWatch({ control, name: "prompt_cache.semantic" });
 
   return (
     <>
@@ -20,7 +28,7 @@ export function PromptCacheSection({ control, register, setValue }: PromptCacheS
         <label>TTL (s)</label>
         <input
           type="number"
-          {...register('prompt_cache.ttl_seconds', { valueAsNumber: true })}
+          {...register("prompt_cache.ttl_seconds", { valueAsNumber: true })}
         />
       </div>
 
@@ -29,28 +37,34 @@ export function PromptCacheSection({ control, register, setValue }: PromptCacheS
         <input
           type="number"
           step="0.01"
-          {...register('prompt_cache.temperature_threshold', { valueAsNumber: true })}
+          {...register("prompt_cache.temperature_threshold", {
+            valueAsNumber: true,
+          })}
         />
       </div>
 
-      <div className="field-row">
-        <label>
+      <div className="toggle-field">
+        <label className="mantis-switch">
           <input
             type="checkbox"
+            role="switch"
             checked={semantic !== null && semantic !== undefined}
-            onChange={event => {
+            onChange={(event) => {
               if (event.target.checked) {
-                setValue('prompt_cache.semantic', {
+                setValue("prompt_cache.semantic", {
                   similarity_threshold: 0.8,
                   top_k: 3,
                   conversation_size_threshold: 3,
-                })
+                });
               } else {
-                setValue('prompt_cache.semantic', null)
+                setValue("prompt_cache.semantic", null);
               }
             }}
-          />{' '}
-          Enable Semantic Cache
+          />
+          <span className="mantis-switch__track" aria-hidden="true">
+            <span className="mantis-switch__thumb" />
+          </span>
+          <span>Enable Semantic Cache</span>
         </label>
       </div>
 
@@ -61,7 +75,7 @@ export function PromptCacheSection({ control, register, setValue }: PromptCacheS
             <input
               type="number"
               step="0.01"
-              {...register('prompt_cache.semantic.similarity_threshold', {
+              {...register("prompt_cache.semantic.similarity_threshold", {
                 valueAsNumber: true,
               })}
             />
@@ -70,20 +84,25 @@ export function PromptCacheSection({ control, register, setValue }: PromptCacheS
             <label>Top K</label>
             <input
               type="number"
-              {...register('prompt_cache.semantic.top_k', { valueAsNumber: true })}
+              {...register("prompt_cache.semantic.top_k", {
+                valueAsNumber: true,
+              })}
             />
           </div>
           <div className="field-row">
             <label>Conversation Size Threshold</label>
             <input
               type="number"
-              {...register('prompt_cache.semantic.conversation_size_threshold', {
-                valueAsNumber: true,
-              })}
+              {...register(
+                "prompt_cache.semantic.conversation_size_threshold",
+                {
+                  valueAsNumber: true,
+                },
+              )}
             />
           </div>
         </div>
       )}
     </>
-  )
+  );
 }
