@@ -33,10 +33,16 @@ export function ConfigForm({
   status,
   onSubmit,
 }: ConfigFormProps) {
-  const { register, handleSubmit, control, reset, setValue } =
-    useForm<FormValues>({
-      defaultValues: toFormValues(config),
-    });
+  const {
+    register,
+    handleSubmit,
+    control,
+    reset,
+    setValue,
+    formState: { isDirty },
+  } = useForm<FormValues>({
+    defaultValues: toFormValues(config),
+  });
 
   const [activeTab, setActiveTab] = useState<TabId>("general");
 
@@ -112,13 +118,23 @@ export function ConfigForm({
             />
           </div>
 
-          <button type="submit" className="btn-submit">
-            Save Config
-          </button>
-
-          {status && (
-            <p className={`status ${status.type}`}>{status.message}</p>
-          )}
+          <div className="form-footer">
+            <div className="form-footer__status">
+              {isDirty ? (
+                <span className="unsaved">
+                  <span className="unsaved-dot" />
+                  Unsaved Changes
+                </span>
+              ) : status ? (
+                <span className={`status ${status.type}`}>
+                  {status.message}
+                </span>
+              ) : null}
+            </div>
+            <button type="submit" className="btn-submit">
+              Save Config
+            </button>
+          </div>
         </form>
       </div>
     </div>
