@@ -494,7 +494,7 @@
 }
 
 .btn-remove:hover {
-  color: var(--coral-tint-2);
+  color: var(--grey-50);
   background: var(--accent);
 }
 
