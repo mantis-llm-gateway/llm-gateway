@@ -117,7 +117,11 @@ export function ConfigForm({
 
           <div className="form-footer">
             <div className="form-footer__status">
-              {isDirty ? (
+              {status?.type === "error" ? (
+                <span className={`status ${status.type}`}>
+                  {status.message}
+                </span>
+              ) : isDirty ? (
                 <span className="unsaved">
                   <span className="unsaved-dot" />
                   Unsaved Changes
