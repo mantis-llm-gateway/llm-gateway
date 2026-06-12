@@ -18,15 +18,19 @@ export function RoutingRulesSection({ control, register }: RoutingRulesSectionPr
       <SectionHeading title="Routing Rules" />
       {fields.map((field, index) => (
         <div key={field.id} className="card">
-          <div className="field-row">
-            {rules[index]?.id && (
-              <>
-                <label>Rule ID</label>
-                <span className="rule-id">{rules[index].id}</span>
-              </>
+          <div className="card-header">
+            {rules[index]?.id ? (
+              <span className="rule-id">Rule {rules[index].id}</span>
+            ) : (
+              <span className="card-index">Rule {String(index + 1).padStart(2, '0')}</span>
             )}
-            <button type="button" className="btn-remove" onClick={() => remove(index)}>
-              Remove Rule
+            <button
+              type="button"
+              className="btn-remove"
+              aria-label="Remove rule"
+              onClick={() => remove(index)}
+            >
+              ✕
             </button>
           </div>
           <div className="field-row">
@@ -36,16 +40,23 @@ export function RoutingRulesSection({ control, register }: RoutingRulesSectionPr
               placeholder="e.g. Code generation"
             />
           </div>
-          <div className="field-row">
-            <label>Match Key</label>
-            <input {...register(`routing_rules.${index}.match.name`)} placeholder="e.g. task-type" />
-          </div>
-          <div className="field-row">
-            <label>Match Value</label>
-            <input
-              {...register(`routing_rules.${index}.match.value`)}
-              placeholder="e.g. code_generation"
-            />
+          <div className="field-grid">
+            <div className="field-row">
+              <label>Match Key</label>
+              <input
+                className="mono"
+                {...register(`routing_rules.${index}.match.name`)}
+                placeholder="e.g. task-type"
+              />
+            </div>
+            <div className="field-row">
+              <label>Match Value</label>
+              <input
+                className="mono"
+                {...register(`routing_rules.${index}.match.value`)}
+                placeholder="e.g. code_generation"
+              />
+            </div>
           </div>
           <RuleTargetsField ruleIndex={index} control={control} register={register} />
         </div>

@@ -1,19 +1,204 @@
-:root {
-  --mantis-deep:   #0D1F16;
-  --mantis-green:  #3A9B5C;
-  --mantis-mid:    #2E7D49;
-  --mantis-light:  #52C878;
-  --mantis-pale:   #EBF5EE;
-  --mantis-border: #C4DDCA;
-  --text:          #1a1f1c;
-  --text-muted:    #4B5E53;
-  --bg:            #F2F6F3;
-  --white:         #ffffff;
-  --danger:        #C0392B;
-  --danger-light:  #FDECEA;
-  --blue:          #2563EB;
+/* ---- Poppins (self-hosted, 4 weights) ---------------------------------- */
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/Poppins-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/fonts/Poppins-Medium.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/Poppins-SemiBold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/Poppins-Bold.ttf") format("truetype");
 }
 
+:root {
+  /* ---- Brand constants (identical in both themes) ---------------------- */
+  --mantis-teal: #00a898;
+  --mantis-teal-deep: #00897c;
+  --mantis-coral: #fd5e3e;
+  --mantis-coral-deep: #e94b2c;
+
+  /* ---- Core neutrals --------------------------------------------------- */
+  --mantis-ink: #102028;
+  --mantis-ink-2: #16282e;
+  --mantis-ink-3: #0c1a1f;
+  --mantis-mist: #e8f0f0;
+  --mantis-white: #ffffff;
+
+  /* ---- Neutral ramp ---------------------------------------------------- */
+  --grey-50: #f4f8f8;
+  --grey-100: #e8f0f0;
+  --grey-200: #d6e2e2;
+  --grey-300: #bdcdcd;
+  --grey-400: #93a5a5;
+  --grey-500: #6b7e7e;
+  --grey-600: #4a5c5c;
+  --grey-700: #2c3c3c;
+  --grey-800: #1b2a2e;
+  --grey-900: #102028;
+
+  /* ---- Tints ----------------------------------------------------------- */
+  --teal-tint: #d9f0ed;
+  --teal-tint-2: #ecf7f5;
+  --coral-tint: #ffe3dc;
+  --coral-tint-2: #fff0ec;
+
+  /* ---- Semantic — light theme (default) -------------------------------- */
+  --bg-page: var(--mantis-mist);
+  --bg-page-alt: var(--grey-50);
+  --surface: var(--mantis-white);
+  --surface-2: var(--grey-50);
+  --surface-inverse: var(--mantis-ink);
+
+  --text-strong: var(--mantis-ink);
+  --text-body: #1e3138;
+  --text-muted: #5a6e6e;
+  --text-faint: #8a9c9c;
+  --text-on-fill: var(--mantis-white);
+  --text-on-dark: var(--mantis-mist);
+
+  --border: #d2e0e0;
+  --border-strong: #bacbcb;
+  --border-faint: #e2ecec;
+
+  --primary: var(--mantis-teal);
+  --primary-hover: var(--mantis-teal-deep);
+  --accent: var(--mantis-coral);
+  --accent-hover: var(--mantis-coral-deep);
+  --link: var(--mantis-coral);
+
+  --focus-ring: rgba(0, 168, 152, 0.32);
+
+  /* ---- Status ---------------------------------------------------------- */
+  --ok: var(--mantis-teal);
+  --ok-tint: var(--teal-tint);
+  --warn: #e8a02c;
+  --warn-tint: #fbefd4;
+  --warn-text: #9a6a12;
+  --warn-border: #f1d88a;
+  --danger: #e94b2c;
+  --danger-tint: #ffe3dc;
+
+  /* ---- Type ------------------------------------------------------------ */
+  --font-display: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-md: 1.0625rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --leading-snug: 1.2;
+  --leading-normal: 1.5;
+
+  --tracking-tight: -0.02em;
+  --tracking-wide: 0.04em;
+  --tracking-label: 0.12em;
+
+  /* ---- Spacing (4px grid) ---------------------------------------------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --header-h: 60px;
+
+  /* ---- Radii ----------------------------------------------------------- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* ---- Shadows --------------------------------------------------------- */
+  --shadow-xs: 0 1px 2px rgba(16, 32, 40, 0.06);
+  --shadow-sm:
+    0 1px 3px rgba(16, 32, 40, 0.08), 0 1px 2px rgba(16, 32, 40, 0.04);
+  --shadow-md:
+    0 4px 14px rgba(16, 32, 40, 0.08), 0 1px 3px rgba(16, 32, 40, 0.05);
+  --shadow-lg:
+    0 14px 40px rgba(16, 32, 40, 0.12), 0 3px 10px rgba(16, 32, 40, 0.06);
+  --shadow-focus: 0 0 0 3px var(--focus-ring);
+  --shadow-teal: 0 6px 18px rgba(0, 168, 152, 0.3);
+
+  /* ---- Motion ---------------------------------------------------------- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+}
+
+/* ==========================================================================
+   Dark theme — neutrals flipped, teal & coral unchanged.
+   ========================================================================== */
+[data-theme="dark"] {
+  --bg-page: var(--mantis-ink-3);
+  --bg-page-alt: #0f2127;
+  --surface: var(--mantis-ink-2);
+  --surface-2: #1d3036;
+  --surface-inverse: var(--mantis-mist);
+
+  --text-strong: var(--mantis-mist);
+  --text-body: #d2e0e0;
+  --text-muted: #8fa3a3;
+  --text-faint: #5e7272;
+
+  --border: #25393f;
+  --border-strong: #33484e;
+  --border-faint: #1e3137;
+
+  --teal-tint: rgba(0, 168, 152, 0.16);
+  --teal-tint-2: rgba(0, 168, 152, 0.1);
+  --coral-tint: rgba(253, 94, 62, 0.18);
+  --coral-tint-2: rgba(253, 94, 62, 0.1);
+
+  --focus-ring: rgba(0, 168, 152, 0.4);
+
+  --ok-tint: rgba(0, 168, 152, 0.16);
+  --warn-tint: rgba(232, 160, 44, 0.18);
+  --warn-text: #e8b95c;
+  --warn-border: rgba(232, 160, 44, 0.35);
+  --danger-tint: rgba(233, 75, 44, 0.18);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-teal: 0 6px 20px rgba(0, 168, 152, 0.4);
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
 *,
 *::before,
 *::after {
@@ -22,12 +207,13 @@
 
 body {
   margin: 0;
-  background: var(--bg);
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  color: var(--text);
+  background: var(--bg-page);
+  color: var(--text-body);
+  font-family: var(--font-sans);
   font-size: 15px;
-  line-height: 1.5;
+  line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 #root {
@@ -36,12 +222,41 @@ body {
   flex-direction: column;
 }
 
-h1, h2, h3, h4, h5 {
+h1,
+h2,
+h3,
+h4,
+h5 {
   margin: 0;
-  font-weight: 600;
-  color: var(--text);
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
 }
 
 p {
   margin: 0;
+}
+
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--font-mono);
+}
+
+::selection {
+  background: var(--teal-tint);
+  color: var(--text-strong);
+}
+
+/* Mono, uppercase, letter-spaced technical label — a Mantis signature. */
+.mantis-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-muted);
 }

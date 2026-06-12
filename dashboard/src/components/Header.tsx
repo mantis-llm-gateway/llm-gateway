@@ -1,14 +1,45 @@
+import { useState } from "react";
+import MantisLockupSvg from "../assets/svgs/MantisLockup";
+import SunSvg from "../assets/svgs/Sun";
+import MoonSvg from "../assets/svgs/Moon";
+
 export function Header() {
+  const [theme, setTheme] = useState<"light" | "dark">(() =>
+    document.documentElement.dataset.theme === "dark" ? "dark" : "light",
+  );
+
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    if (next === "dark") {
+      document.documentElement.dataset.theme = "dark";
+    } else {
+      delete document.documentElement.dataset.theme;
+    }
+    try {
+      localStorage.setItem("mantis-theme", next);
+    } catch {
+      // ignore storage failures (e.g. private browsing)
+    }
+  }
+
   return (
     <header className="header">
-      <div className="header-logo">
-        <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-          <path d="M8 1 L13 5 L13 11 L8 15 L3 11 L3 5 Z" />
-        </svg>
+      <div className="header-brand">
+        <MantisLockupSvg />
       </div>
-      <span className="header-name">Mantis</span>
-      <span className="header-sep" />
-      <span className="header-sub">Routing Config</span>
+
+      <button
+        type="button"
+        className="theme-toggle"
+        onClick={toggleTheme}
+        aria-label={
+          theme === "dark" ? "Switch to light theme" : "Switch to dark theme"
+        }
+        title={theme === "dark" ? "Light mode" : "Dark mode"}
+      >
+        {theme === "dark" ? <SunSvg /> : <MoonSvg />}
+      </button>
     </header>
-  )
+  );
 }

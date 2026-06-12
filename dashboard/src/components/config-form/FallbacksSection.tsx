@@ -16,33 +16,41 @@ export function FallbacksSection({ control, register }: FallbacksSectionProps) {
   return (
     <>
       <SectionHeading title="Fallbacks" />
-      {fields.map((field, index) => (
-        <div key={field.id} className="field-row">
-          <select {...register(`fallbacks.${index}.value`)}>
-            {fallbacks[index]?.value &&
-              !aliases.some(alias => alias.name === fallbacks[index].value) && (
-                <option value={fallbacks[index].value}>
-                  {fallbacks[index].value} (missing alias)
+      <div className="card">
+        {fields.map((field, index) => (
+          <div key={field.id} className="field-row fallback-row">
+            <span className="fallback-num">{index + 1}</span>
+            <select {...register(`fallbacks.${index}.value`)}>
+              {fallbacks[index]?.value &&
+                !aliases.some(alias => alias.name === fallbacks[index].value) && (
+                  <option value={fallbacks[index].value}>
+                    {fallbacks[index].value} (missing alias)
+                  </option>
+                )}
+              {aliases.map(alias => (
+                <option key={alias.name} value={alias.name}>
+                  {alias.name}
                 </option>
-              )}
-            {aliases.map(alias => (
-              <option key={alias.name} value={alias.name}>
-                {alias.name}
-              </option>
-            ))}
-          </select>
-          <button type="button" className="btn-remove" onClick={() => remove(index)}>
-            Remove
-          </button>
-        </div>
-      ))}
-      <button
-        type="button"
-        className="btn-add"
-        onClick={() => append({ value: aliases[0]?.name ?? '' })}
-      >
-        + Add Fallback
-      </button>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn-remove"
+              aria-label="Remove fallback"
+              onClick={() => remove(index)}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          className="btn-add"
+          onClick={() => append({ value: aliases[0]?.name ?? '' })}
+        >
+          + Add Fallback
+        </button>
+      </div>
     </>
   )
 }
