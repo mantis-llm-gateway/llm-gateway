@@ -401,6 +401,27 @@ The `setup_auth.sh` script separately creates `auth/api-token-hashes`,
 referenced by ECS but intentionally remain outside Terraform state. They are not removed
 by `terraform destroy`.
 
+### CloudWatch Observability Dashboards
+
+Terraform automatically creates the four CloudWatch observability dashboards during
+`terraform apply` from the JSON definitions in `gateway/dashboards/`. The dashboards
+query the deployment log group `/ecs/gw-<namespace>/gateway` and are named with the
+`LLMGateway-<namespace>-<dashboard-name>` pattern.
+
+- `LLMGateway-<namespace>-health-overview` shows request success, error rate,
+  guardrail interventions, latency, request volume, Redis errors, embedding
+  failures, and latency by model or routing metadata.
+
+- `LLMGateway-<namespace>-routing-reliability` shows failovers, failover rate,
+  retry rate, failovers by routing metadata, and Bedrock errors by provider,
+  model, and error code.
+
+- `LLMGateway-<namespace>-request-lifecycle` shows recent terminal request
+  events and a request-id drill-down table for tracing one request end to end.
+
+- `LLMGateway-<namespace>-cache-and-token-usage` shows cache hits, cache hit
+  rates, token usage over time, and token usage by routing metadata or model.
+
 ### Tearing down
 
 To destroy all Terraform-managed infrastructure for your environment:

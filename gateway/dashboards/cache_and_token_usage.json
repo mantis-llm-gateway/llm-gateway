@@ -159,7 +159,7 @@
                 "title": "Cache Hit Rate by Metadata",
                 "region": "us-east-1",
                 "view": "table",
-                "query": "SOURCE '/ecs/gw-sam/gateway' | filter message in [\"cache hit\", \"successful non-streamed LLM response\", \"stream completed\", \"abort\", \"targets exhausted\", \"guardrail intervened\", \"mid-stream error\"] | stats sum(strcontains(message, \"cache hit\")) as cache_hits, count(*) as total_requests, avg(if(strcontains(message, \"cache hit\"), 100, 0)) as hit_rate_pct by metadata | sort total_requests desc"
+                "query": "SOURCE '/ecs/gw/gateway' | filter message in [\"cache hit\", \"successful non-streamed LLM response\", \"stream completed\", \"abort\", \"targets exhausted\", \"guardrail intervened\", \"mid-stream error\"] | stats sum(strcontains(message, \"cache hit\")) as cache_hits, count(*) as total_requests, avg(if(strcontains(message, \"cache hit\"), 100, 0)) as hit_rate_pct by metadata | sort total_requests desc"
             }
         },
         {
@@ -174,7 +174,7 @@
                 "title": "Token Usage by Routing Rule (Metadata)",
                 "region": "us-east-1",
                 "view": "table",
-                "query": "SOURCE '/ecs/gw-sam/gateway' | filter message in [\"successful non-streamed LLM response\", \"stream completed\"] | stats sum(input_tokens) as total_input_tokens, sum(output_tokens) as total_output_tokens, sum(input_tokens + output_tokens) as total_tokens by metadata | sort total_tokens desc"
+                "query": "SOURCE '/ecs/gw/gateway' | filter message in [\"successful non-streamed LLM response\", \"stream completed\"] | stats sum(input_tokens) as total_input_tokens, sum(output_tokens) as total_output_tokens, sum(input_tokens + output_tokens) as total_tokens by metadata | sort total_tokens desc"
             }
         },
         {
@@ -189,7 +189,7 @@
                 "title": "Token Consumption by Model",
                 "region": "us-east-1",
                 "view": "table",
-                "query": "SOURCE '/ecs/gw-sam/gateway' | filter message in [\"successful non-streamed LLM response\", \"stream completed\"] | stats sum(input_tokens) as total_input, sum(output_tokens) as total_output, count(*) as requests by model, provider | sort total_input desc"
+                "query": "SOURCE '/ecs/gw/gateway' | filter message in [\"successful non-streamed LLM response\", \"stream completed\"] | stats sum(input_tokens) as total_input, sum(output_tokens) as total_output, count(*) as requests by model, provider | sort total_input desc"
             }
         }
     ]

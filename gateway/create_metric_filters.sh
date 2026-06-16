@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LOG_GROUP="/ecs/gw-sam/gateway"
+LOG_GROUP="/ecs/gw/gateway"
 REGION="us-east-1"
 PROFILE="gw"
 

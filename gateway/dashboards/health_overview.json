@@ -224,7 +224,7 @@
                 "title": "Average Latency per Model (ms)",
                 "region": "us-east-1",
                 "view": "table",
-                "query": "SOURCE '/ecs/gw-sam/gateway' | filter ispresent(latency_ms) | stats avg(latency_ms) as avg_latency_ms by model | sort avg_latency_ms desc"
+                "query": "SOURCE '/ecs/gw/gateway' | filter ispresent(latency_ms) | stats avg(latency_ms) as avg_latency_ms by model | sort avg_latency_ms desc"
             }
         },
         {
@@ -234,7 +234,7 @@
                 "title": "Average Latency per Routing Rule (ms)",
                 "region": "us-east-1",
                 "view": "table",
-                "query": "SOURCE '/ecs/gw-sam/gateway' | filter ispresent(latency_ms) | stats avg(latency_ms) as avg_latency_ms by metadata | sort avg_latency_ms desc"
+                "query": "SOURCE '/ecs/gw/gateway' | filter ispresent(latency_ms) | stats avg(latency_ms) as avg_latency_ms by metadata | sort avg_latency_ms desc"
             }
         }
     ]
