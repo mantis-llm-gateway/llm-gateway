@@ -50,7 +50,7 @@
                 "title": "Failover Rate by Model",
                 "region": "us-east-1",
                 "view": "table",
-                "query": "SOURCE '/ecs/gw-sam/gateway' | filter message in [\"failover\", \"successful non-streamed LLM response\", \"stream completed\"] | stats sum(strcontains(message, \"failover\")) as failovers, count(*) as total_attempts, avg(if(strcontains(message, \"failover\"), 100, 0)) as failover_rate_pct by model | sort failover_rate_pct desc"
+                "query": "SOURCE '/ecs/gw/gateway' | filter message in [\"failover\", \"successful non-streamed LLM response\", \"stream completed\"] | stats sum(strcontains(message, \"failover\")) as failovers, count(*) as total_attempts, avg(if(strcontains(message, \"failover\"), 100, 0)) as failover_rate_pct by model | sort failover_rate_pct desc"
             }
         },
         {
@@ -60,7 +60,7 @@
                 "title": "Retry Rate by Model",
                 "region": "us-east-1",
                 "view": "table",
-                "query": "SOURCE '/ecs/gw-sam/gateway' | filter message in [\"retry target\", \"successful non-streamed LLM response\", \"stream completed\"] | stats sum(strcontains(message, \"retry target\")) as retries, count(*) as total_attempts, avg(if(strcontains(message, \"retry target\"), 100, 0)) as retry_rate_pct by model | sort retry_rate_pct desc"
+                "query": "SOURCE '/ecs/gw/gateway' | filter message in [\"retry target\", \"successful non-streamed LLM response\", \"stream completed\"] | stats sum(strcontains(message, \"retry target\")) as retries, count(*) as total_attempts, avg(if(strcontains(message, \"retry target\"), 100, 0)) as retry_rate_pct by model | sort retry_rate_pct desc"
             }
         },
         {
@@ -75,7 +75,7 @@
                 "title": "Failovers by Metadata",
                 "region": "us-east-1",
                 "view": "table",
-                "query": "SOURCE '/ecs/gw-sam/gateway' | filter message = \"failover\" | stats count(*) as failovers by metadata | sort failovers desc"
+                "query": "SOURCE '/ecs/gw/gateway' | filter message = \"failover\" | stats count(*) as failovers by metadata | sort failovers desc"
             }
         },
         {
@@ -90,7 +90,7 @@
                 "title": "Bedrock Errors by Code & Model",
                 "region": "us-east-1",
                 "view": "table",
-                "query": "SOURCE '/ecs/gw-sam/gateway' | filter message = \"bedrock call failed\" | stats count(*) as errors by provider, model, err_code | sort provider, model, errors desc"
+                "query": "SOURCE '/ecs/gw/gateway' | filter message = \"bedrock call failed\" | stats count(*) as errors by provider, model, err_code | sort provider, model, errors desc"
             }
         }
     ]

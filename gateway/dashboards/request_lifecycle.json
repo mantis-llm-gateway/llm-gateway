@@ -30,7 +30,7 @@
                 "title": "Recent Requests",
                 "region": "us-east-1",
                 "view": "table",
-                "query": "SOURCE '/ecs/gw-sam/gateway' | fields @timestamp, request_id, message as outcome, provider, model, latency_ms, input_tokens, output_tokens, status_code, error_message | filter message in [\"cache hit\", \"successful non-streamed LLM response\", \"stream completed\", \"abort\", \"targets exhausted\", \"guardrail intervened\", \"mid-stream error\"] | sort @timestamp desc | limit 100"
+                "query": "SOURCE '/ecs/gw/gateway' | fields @timestamp, request_id, message as outcome, provider, model, latency_ms, input_tokens, output_tokens, status_code, error_message | filter message in [\"cache hit\", \"successful non-streamed LLM response\", \"stream completed\", \"abort\", \"targets exhausted\", \"guardrail intervened\", \"mid-stream error\"] | sort @timestamp desc | limit 100"
             }
         },
         {
@@ -45,7 +45,7 @@
                 "title": "All Gateway Events",
                 "region": "us-east-1",
                 "view": "table",
-                "query": "SOURCE '/ecs/gw-sam/gateway' | fields @timestamp, request_id, message, provider, model, latency_ms, err_code, error_message, stream | filter message in [\"cache hit\", \"successful non-streamed LLM response\", \"stream completed\", \"abort\", \"targets exhausted\", \"guardrail intervened\", \"mid-stream error\", \"stream started\", \"failover\", \"retry target\", \"target put into cooldown\", \"bedrock call failed\", \"exact cache hit\", \"exact cache lookup miss\", \"semantic cache hit\", \"semantic cache lookup miss\", \"set key in exact cache\", \"set key in semantic cache\"] | filter request_id = \"{{request_id}}\" | sort @timestamp asc | limit 200"
+                "query": "SOURCE '/ecs/gw/gateway' | fields @timestamp, request_id, message, provider, model, latency_ms, err_code, error_message, stream | filter message in [\"cache hit\", \"successful non-streamed LLM response\", \"stream completed\", \"abort\", \"targets exhausted\", \"guardrail intervened\", \"mid-stream error\", \"stream started\", \"failover\", \"retry target\", \"target put into cooldown\", \"bedrock call failed\", \"exact cache hit\", \"exact cache lookup miss\", \"semantic cache hit\", \"semantic cache lookup miss\", \"set key in exact cache\", \"set key in semantic cache\"] | filter request_id = \"{{request_id}}\" | sort @timestamp asc | limit 200"
             }
         }
     ]
