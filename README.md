@@ -495,5 +495,34 @@ pip install mantis-gw
 
 The package is imported as `mantis_gw`.
 
+```python
+import asyncio
+
+from mantis_gw import gateway
+
+async def main() -> None:
+    client = gateway.Gateway(
+        url="https://gateway.example.com",
+        token="gw_token-id_token-secret",
+    )
+
+    response = await client.send(
+        {
+            "messages": [
+                {"role": "user", "content": "Write a short project summary."},
+            ],
+            "stream": False,
+            "temperature": 0.5,
+            "max_tokens": 256,
+            "system": "Answer clearly and concisely.",
+        },
+        metadata={"task-type": "summarization"},
+    )
+
+asyncio.run(main())
+```
+
+
+
 For full usage examples, including streaming, non-streaming requests, metadata,
 request payload rules, and error handling, see the SDK documentation on PyPI: https://pypi.org/project/mantis-gw/
