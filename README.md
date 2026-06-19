@@ -439,7 +439,7 @@ Additional documentation can be found in:
 - `gateway/README.md`
 - `docs/`
 
-# Amazon Bedrock `model_id`
+## Amazon Bedrock `model_id`
 To find the Amazon Bedrock model_id value, click on the model you want to use here: https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html
 
 ## Deployment CLI tool
@@ -478,3 +478,51 @@ those settings.
 
 To destroy all Terraform-managed infrastructure for your environment, run
 `terraform -chdir=infra destroy` from the root of the Mantis gateway.
+
+## SDK
+
+The Mantis SDK provides a small Python client for sending chat completion
+requests to a running Mantis Gateway service.
+
+Use it when you want application code to call the gateway directly without
+manually constructing requests to `/v1/chat/completions`.
+
+Install the SDK from PyPI:
+
+```sh
+pip install mantis-gw
+```
+
+The package is imported as `mantis_gw`.
+
+```python
+import asyncio
+
+from mantis_gw import gateway
+
+async def main() -> None:
+    client = gateway.Gateway(
+        url="https://gateway.example.com",
+        token="gw_token-id_token-secret",
+    )
+
+    response = await client.send(
+        {
+            "messages": [
+                {"role": "user", "content": "Write a short project summary."},
+            ],
+            "stream": False,
+            "temperature": 0.5,
+            "max_tokens": 256,
+            "system": "Answer clearly and concisely.",
+        },
+        metadata={"task-type": "summarization"},
+    )
+
+asyncio.run(main())
+```
+
+
+
+For full usage examples, including streaming, non-streaming requests, metadata,
+request payload rules, and error handling, see the SDK documentation on PyPI: https://pypi.org/project/mantis-gw/
