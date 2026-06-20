@@ -46,7 +46,7 @@ async def orchestrate(
     max_tokens: int | None = None,
     system: str | None = None,
     start_time: datetime | None,
-) -> JSONResponse | StreamingResponse | None:
+) -> JSONResponse | StreamingResponse:
     """Run a chat-completion request through the gateway.
 
     Resolves the attempt chain, then for each target:
@@ -188,7 +188,7 @@ async def orchestrate(
         )
         return JSONResponse(status_code=last_status, content={"error": "service unavailable"})
 
-    return JSONResponse(status_code=504, content={"error": "service unavailable"})
+    return JSONResponse(status_code=503, content={"error": "service unavailable"})
 
 
 def _conversation_cache_prompt(messages: list[ChatMessageRequest], system: str | None) -> str:
