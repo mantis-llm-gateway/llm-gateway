@@ -188,7 +188,7 @@ async def orchestrate(
         )
         return JSONResponse(status_code=last_status, content={"error": "service unavailable"})
 
-    return None
+    return JSONResponse(status_code=504, content={"error": "service unavailable"})
 
 
 def _conversation_cache_prompt(messages: list[ChatMessageRequest], system: str | None) -> str:
