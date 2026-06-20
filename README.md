@@ -1,6 +1,34 @@
 # Mantis gateway
 
-TODO: description of the repo
+Mantis Gateway is a configurable LLM routing service for applications that need one
+stable API in front of multiple model targets. Clients send chat completion requests
+to the gateway, optionally include routing metadata, and the gateway chooses the best
+configured provider/model target, retries or fails over when needed, and returns either
+a streaming or non-streaming response.
+
+The core service is a FastAPI backend that currently routes to Amazon Bedrock models.
+Routing behavior is driven by `gateway/src/gateway/config.json`, which defines model
+aliases, metadata-based routing rules, weighted targets, fallbacks, retry counts,
+timeouts, cooldowns, and prompt-cache settings. At runtime the gateway can load this
+config from AWS Systems Manager Parameter Store, allowing deployed environments to keep
+routing policy outside the container image.
+
+The gateway also includes operational pieces around the service:
+
+- A React/Vite dashboard for editing routing configuration through authenticated
+  `/config` endpoints.
+- Redis-compatible caching for provider/model cooldowns, exact prompt cache hits, and
+  optional semantic prompt cache hits.
+- Terraform infrastructure for AWS deployment, including ECS, ECR, ALB, ElastiCache,
+  Parameter Store, S3-hosted dashboard assets, IAM, networking, and CloudWatch
+  dashboards.
+- Shell scripts and a `mantis` CLI that bootstrap state, provision authentication
+  parameters, apply infrastructure, build the dashboard, push the gateway image, and
+  deploy the service.
+
+Use this repository when you want application code to call a single gateway endpoint
+while keeping model choice, fallback behavior, authentication, cache policy, and
+deployment configuration centrally managed.
 
 ## Repository Structure
 
