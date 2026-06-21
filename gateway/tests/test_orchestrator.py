@@ -253,7 +253,7 @@ async def test_cooldown_skips_target(test_context, fake_redis):
 
 
 @pytest.mark.asyncio
-async def test_all_cooled_returns_none(test_context, fake_redis):
+async def test_all_cooled_returns_503(test_context, fake_redis):
     fake_redis._cooldowns.add("gateway:cooldown:anthropic:claude-3")
     fake_redis._cooldowns.add("gateway:cooldown:openai:gpt-4")
     with patch(
@@ -268,7 +268,7 @@ async def test_all_cooled_returns_none(test_context, fake_redis):
             start_time=datetime.now(UTC),
         )
     assert mock_attempt.await_count == 0
-    assert result is None
+    assert result.status_code == 503
 
 
 @pytest.mark.asyncio
