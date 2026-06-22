@@ -30,6 +30,8 @@ Use this repository when you want application code to call a single gateway endp
 while keeping model choice, fallback behavior, authentication, cache policy, and
 deployment configuration centrally managed.
 
+To get to know Mantis better, visit our [website](https://mantis-llm-gateway.github.io/) and [case study](https://mantis-llm-gateway.github.io/).
+
 ## Repository Structure
 
 ```text
