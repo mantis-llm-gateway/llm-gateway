@@ -128,6 +128,9 @@ authentication:
 | `POST /v1/chat/completions` | `Authorization: Bearer gw_<token-id>_<random-secret>` |
 | Dashboard assets, `GET /config`, and `POST /config` | Browser HTTP Basic Auth |
 
+The default Routing Config Dashboard username is `admin`; for deployed environments, pass
+`--dashboard-username=<username>` when running `./scripts/setup_auth.sh`.
+
 Only API token hashes and the Argon2 dashboard password hash are stored by the gateway.
 For local development, populate the authentication fields documented in
 `gateway/.env.example`.
